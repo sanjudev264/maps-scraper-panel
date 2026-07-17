@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps Scraper Pro - Premium Panel</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 0; padding: 40px; }
+        .container { max-width: 650px; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin: auto; }
+        h2 { color: #1e293b; margin-top: 0; text-align: center; font-size: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-top: 20px; margin-bottom: 8px; color: #334155; }
+        input[type="file"], input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        textarea { height: 80px; resize: vertical; }
+        .token-section { background: #fef3c7; padding: 15px; border-radius: 6px; border: 1px solid #f59e0b; margin-bottom: 20px; }
+        button { background-color: #2563eb; color: white; padding: 14px 20px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 25px; font-weight: bold; transition: 0.2s; }
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .status-box { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; text-align: center; font-weight: bold; }
+        .status-running { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .status-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .loader { display: inline-block; width: 15px; height: 15px; border: 2px solid #1e40af; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📍 Google Maps Lead Scraper Panel</h2>
+    
+    <!-- গিটহাব ক্রেডেনশিয়াল পার্ট (একবার সেভ করে রাখলে ব্রাউজারে থেকে যাবে) -->
+    <div class="token-section">
+        <label for="githubToken" style="margin-top:0;">🔑 GitHub Personal Access Token:</label>
+        <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+        <label for="repoName" style="margin-top:10px;">📦 Repository (Format: username/repo-name):</label>
+        <input type="text" id="repoName" placeholder="your-username/your-repo">
+    </div>
+
+    <label for="csvFile">১. ইনপুট ফাইল আপলোড করুন (input.csv):</label>
+    <input type="file" id="csvFile" accept=".csv">
+
+    <label for="includeCategories">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে আলাদা করুন):</label>
+    <textarea id="includeCategories">water damage restoration, mold remediation, plumber, contractor, roofing contractor</textarea>
+
+    <label for="excludeDomains">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে আলাদা করুন):</label>
+    <textarea id="excludeDomains">servpro.com, pauldavis.com, puroclean.com, restoration1.com</textarea>
+
+    <button id="runBtn" onclick="startProcess()">🚀 স্ক্র্যাপার রান করুন</button>
+
+    <div id="statusBox" class="status-box"></div>
+</div>
+
+<script>
+// পেজ লোড হলে আগের টোকেন ও রেপো নাম ইনপুট বক্সে বসানো (যাতে বারবার লিখতে না হয়)
+document.addEventListener("DOMContentLoaded", () => {
+    if(localStorage.getItem('gh_token')) document.getElementById('githubToken').value = localStorage.getItem('gh_token');
+    if(localStorage.getItem('gh_repo')) document.getElementById('repoName').value = localStorage.getItem('gh_repo');
+});
+
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+async function startProcess() {
+    const token = document.getElementById('githubToken').value.trim();
+    const repo = document.getElementById('repoName').value.trim();
+    const fileInput = document.getElementById('csvFile');
+    const includeCats = document.getElementById('includeCategories').value.trim();
+    const excludeDomains = document.getElementById('excludeDomains').value.trim();
+    const runBtn = document.getElementById('runBtn');
+    const statusBox = document.getElementById('statusBox');
+
+    if (!token || !repo) {
+        alert("দয়া করে আপনার GitHub Token এবং Repository-র নাম দিন!");
+        return;
+    }
+    if (!fileInput.files[0]) {
+        alert("দয়া করে প্রথমে একটি input.csv ফাইল আপলোড করুন!");
+        return;
+    }
+
+    // ব্রাউজারে টোকেন ও রেপো সেভ করে রাখা
+    localStorage.setItem('gh_token', token);
+    localStorage.setItem('gh_repo', repo);
+
+    runBtn.disabled = true;
+    showStatus("status-running", "<span class='loader'></span> গিটহাবে ইনপুট ফাইল আপলোড করা হচ্ছে...");
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async function(e) {
+        const fileContent = e.target.result;
+        const base64Content = btoa(unescape(encodeURIComponent(fileContent)));
+
+        try {
+            // ১. input.csv ফাইলটি গিটহাবে কমিট/আপলোড করা
+            showStatus("status-running", "<span class='loader'></span> input.csv ফাইল আপডেট করা হচ্ছে...");
+            
+            // ফাইলের আগের SHA কোড বের করা (ফাইল রিপ্লেস করার জন্য লাগে)
+            let sha = "";
+            const getFileRes = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
+                headers: { "Authorization": `token ${token}` }
+            });
+            if (getFileRes.ok) {
+                const fileData = await getFileRes.json();
+                sha = fileData.sha;
+            }
+
+            // ফাইল আপলোড রিকোয়েস্ট
+            const uploadRes = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `token ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message: "Update input.csv via Web Panel",
+                    content: base64Content,
+                    sha: sha ? sha : undefined
+                })
+            });
+
+            if (!uploadRes.ok) throw new Error("ইনপুট ফাইল আপলোড করা যায়নি!");
+
+            // ২. GitHub Action Workflow রান করা
+            showStatus("status-running", "<span class='loader'></span> গিটহাবের সার্ভারে কাজ শুরু করার সিগন্যাল পাঠানো হচ্ছে...");
+            
+            const triggerRes = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `token ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    ref: "main",
+                    inputs: {
+                        include_categories: includeCats,
+                        exclude_domains: excludeDomains
+                    }
+                })
+            });
+
+            if (!triggerRes.ok) throw new Error("স্ক্র্যাপার রান করা যায়নি!");
+
+            // ৩. পোলিং (Polling): কাজ শেষ হওয়া পর্যন্ত ব্রাউজারে ট্র্যাক করা
+            showStatus("status-running", "<span class='loader'></span> ব্যাকগ্রাউন্ডে স্ক্র্যাপিং চলছে... দয়া করে অপেক্ষা করুন (এই ব্রাউজার ট্যাবটি বন্ধ করবেন না)");
+            
+            await delay(15000); // গিটহাব ওয়ার্কফ্লো স্টার্ট হতে ১৫ সেকেন্ড সময় দেওয়া
+            
+            let completed = false;
+            let runId = null;
+
+            while (!completed) {
+                const runsRes = await fetch(`https://api.github.com/repos/${repo}/actions/runs?per_page=1`, {
+                    headers: { "Authorization": `token ${token}` }
+                });
+                
+                if (runsRes.ok) {
+                    const runsData = await runsRes.json();
+                    if (runsData.workflow_runs.length > 0) {
+                        const latestRun = runsData.workflow_runs[0];
+                        runId = latestRun.id;
+                        const status = latestRun.status; // 'queued', 'in_progress', 'completed'
+                        const conclusion = latestRun.conclusion; // 'success', 'failure'
+
+                        if (status === 'completed') {
+                            completed = true;
+                            if (conclusion === 'success') {
+                                showStatus("status-success", "🎉 স্ক্র্যাপিং সফলভাবে সম্পন্ন হয়েছে! আপনার ফাইলটি ডাউনলোড হচ্ছে...");
+                                await downloadArtifact(repo, token, runId);
+                            } else {
+                                showStatus("status-error", "❌ কোনো কারণে স্ক্র্যাপার রান ফেইল করেছে! গিটহাবে চেক করুন।");
+                            }
+                        } else {
+                            showStatus("status-running", `<span class='loader'></span> গিটহাব সার্ভার স্ক্র্যাপ করছে... (বর্তমান অবস্থা: ${status.toUpperCase()})`);
+                        }
+                    }
+                }
+                if (!completed) await delay(15000); // প্রতি ১৫ সেকেন্ড পর পর চেক করবে
+            }
+
+        } catch (error) {
+            showStatus("status-error", "ভুল হয়েছে: " + error.message);
+        } finally {
+            runBtn.disabled = false;
+        }
+    };
+
+    reader.readAsText(file);
+}
+
+function showStatus(className, message) {
+    const statusBox = document.getElementById('statusBox');
+    statusBox.style.display = "block";
+    statusBox.className = `status-box ${className}`;
+    statusBox.innerHTML = message;
+}
+
+// জেনারেট হওয়া ফাইল ডাউনলোড করার ফাংশন
+async function downloadArtifact(repo, token, runId) {
+    try {
+        const artifactRes = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${runId}/artifacts`, {
+            headers: { "Authorization": `token ${token}` }
+        });
+        const artifactData = await artifactRes.json();
+        if (artifactData.artifacts.length > 0) {
+            const artifactId = artifactData.artifacts[0].id;
+            
+            // ডাউনলোড লিংক তৈরি ও ট্রিগার
+            const downloadUrl = `https://api.github.com/repos/${repo}/actions/artifacts/${artifactId}/zip`;
+            
+            const fileDataRes = await fetch(downloadUrl, {
+                headers: { "Authorization": `token ${token}` }
+            });
+            const blob = await fileDataRes.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scraped_leads_run_${runId}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else {
+            alert("দুঃখিত, আউটপুট ফাইলটি পাওয়া যায়নি!");
+        }
+    } catch (e) {
+        alert("ফাইল ডাউনলোড করতে সমস্যা হয়েছে: " + e.message);
+    }
+}
+</script>
+</body>
+</html>
