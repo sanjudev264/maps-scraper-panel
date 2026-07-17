@@ -30,12 +30,12 @@
             </div>
 
             <div>
-                <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
+                <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
                 <textarea id="categories" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="Air duct&#10;Asbestos"></textarea>
             </div>
 
             <div>
-                <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
+                <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
                 <textarea id="domains" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="servpro.com"></textarea>
             </div>
 
@@ -44,6 +44,7 @@
             </button>
         </div>
 
+        <!-- 📊 লাইভ স্ট্যাটাস ও প্রোগ্রেস বক্স -->
         <div id="statusBox" class="mt-6 p-4 rounded-lg hidden text-center font-semibold"></div>
     </div>
 
@@ -67,11 +68,11 @@
             const runBtn = document.getElementById('runBtn');
 
             if (!token || !repo) {
-                alert("দয়া করে গিটহাব টোকেন এবং রিপোজিটরি নাম দিন!");
+                alert("দয়া করে গিটহাব টোকেন এবং রিপোজিটরি নাম দিন!");
                 return;
             }
             if (!mapLinksRaw && !fileInput) {
-                alert("দয়া করে ম্যাপ লিংক দিন অথবা ফাইল আপলোড করুন!");
+                alert("দয়া করে ম্যাপ লিংক দিন অথবা ফাইল আপলোড করুন!");
                 return;
             }
 
@@ -136,23 +137,32 @@
                 });
 
                 if (triggerWorkflow.status === 204) {
-                    // সফলভাবে চালু হলে লাইভ ট্র্যাকিং শুরু হবে
-                    trackLiveStatus(token, repo, statusBox);
+                    // সফলভাবে ওয়ার্কফ্লো রান ট্রিগার হলে ১ সেকেন্ড অপেক্ষা করে ট্র্যাকিং মেকানিজম চালু হবে
+                    setTimeout(() => {
+                        trackLiveStatus(token, repo, statusBox);
+                    }, 1000);
                 } else {
-                    throw new Error("Workflow রান করা যায়নি।");
+                    throw new Error("Workflow রান করা যায়নি।");
                 }
             } catch (error) {
                 statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-50 text-red-700 block";
                 statusBox.innerText = "❌ এরর: " + error.message;
                 runBtn.disabled = false;
-                runBtn.innerText = "🚀 স্ক্র্যাপার run করুন";
+                runBtn.innerText = "🚀 স্ক্র্যাপার রান করুন";
             }
         }
 
-        // গিটহাবের রান লাইভ ট্র্যাক করার ফাংশন
+        // 🔄 গিটহাব ব্যাকএন্ড থেকে নিখুঁত লাইভ প্রোগ্রেস এবং পার্সেন্টেজ রিড করার ফাংশন
         function trackLiveStatus(token, repo, statusBox) {
-            statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-yellow-50 text-yellow-800 block animate-pulse";
-            statusBox.innerHTML = "⏳ স্ক্র্যাপার বর্তমানে লাইভ ডেটা কালেকশন করছে...<br><span class='text-xs text-gray-500' id='timer-text'>পেজটি এভাবেই খোলা রাখুন, কাজ শেষ হলে অটোমেটিক ডাউনলোডের বাটন চলে আসবে। (চেক করা হচ্ছে...)</span>";
+            statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-yellow-50 text-yellow-800 block border border-yellow-200 shadow-sm";
+            statusBox.innerHTML = `
+                <div class="flex flex-col items-center justify-center space-y-2">
+                    <span class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></span>
+                    <span id="progress-header" class="text-md font-bold">⏳ সার্ভার অ্যাক্টিভেট হচ্ছে...</span>
+                    <span class="text-xs text-gray-500" id="timer-text">অনুগ্রহ করে অপেক্ষা করুন, ক্লাউড ইনস্ট্যান্স প্রিপেয়ার হচ্ছে...</span>
+                    <div id="live-log-container" class="mt-2 hidden"></div>
+                </div>
+            `;
 
             const interval = setInterval(async () => {
                 try {
@@ -165,15 +175,58 @@
                         if (data.workflow_runs && data.workflow_runs.length > 0) {
                             const latestRun = data.workflow_runs[0];
                             const status = latestRun.status;         // queued, in_progress, completed
-                            const conclusion = latestRun.conclusion; // success, failure, etc.
+                            const conclusion = latestRun.conclusion; // success, failure
+                            const liveUrl = latestRun.html_url;     // গিটহাব লাইভ অ্যাকশন পেজ লিংক
 
-                            if (status === "in_progress" || status === "queued") {
-                                document.getElementById('timer-text').innerText = `স্ক্র্যাপার রানিং আছে... (স্ট্যাটাস: ${status})`;
-                            } else if (status === "completed") {
-                                clearInterval(interval); // ট্র্যাকিং স্টপ
+                            if (status === "queued") {
+                                document.getElementById('progress-header').innerText = `⏳ গিটহাব রান কিউতে (Queued) আছে...`;
+                                document.getElementById('timer-text').innerText = `সার্ভার ফ্রি হওয়া মাত্রই স্ক্র্যাপিং স্টার্ট হবে।`;
+                            } 
+                            else if (status === "in_progress") {
+                                document.getElementById('progress-header').innerText = `⚙️ স্ক্র্যাপার বর্তমানে লাইভ কাজ করছে!`;
+                                
+                                // গিটহাব এপিআই থেকে ইন্টারনাল জব এবং কমপ্লিটেড স্টেপস এনালাইসিস করে রিয়েল-টাইম আপডেট জেনারেট করা
+                                const jobsResp = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${latestRun.id}/jobs`, {
+                                    headers: { "Authorization": `token ${token}` }
+                                });
+                                
+                                if (jobsResp.ok) {
+                                    const jobsData = await jobsResp.json();
+                                    if (jobsData.jobs && jobsData.jobs.length > 0) {
+                                        const job = jobsData.jobs[0];
+                                        // রানিং স্টেপস ট্র্যাক করা (যেমন: Checkout, Setup Node, Run Scraper ইত্যাদি)
+                                        const currentStep = job.steps.find(s => s.status === "in_progress");
+                                        const completedStepsCount = job.steps.filter(s => s.status === "completed").length;
+                                        const totalSteps = job.steps.length;
+                                        
+                                        // স্টেপ ভিত্তিক আনুমানিক পার্সেন্টেজ হিসাব
+                                        const percent = Math.round((completedStepsCount / totalSteps) * 100);
+
+                                        if (currentStep) {
+                                            document.getElementById('timer-text').innerHTML = `
+                                                <div class="w-full bg-gray-200 rounded-full h-2.5 my-2">
+                                                    <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+                                                </div>
+                                                বর্তমান ধাপ: <span class="text-indigo-600 font-bold">${currentStep.name}</span> (${percent}%)
+                                            `;
+                                        }
+                                    }
+                                }
+
+                                // রিয়েল-টাইম সম্পূর্ণ ডিটেইলস কনসোল দেখার জন্য সরাসরি লাইভ বাটনটি পুশ করা
+                                const logContainer = document.getElementById('live-log-container');
+                                logContainer.className = "mt-3 block";
+                                logContainer.innerHTML = `
+                                    <a href="${liveUrl}" target="_blank" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-1.5 px-3 rounded border border-indigo-200 transition">
+                                        🔍 সরাসরি রিয়েল-টাইম লাইভ লগ স্ক্রিন দেখুন
+                                    </a>
+                                `;
+                            } 
+                            else if (status === "completed") {
+                                clearInterval(interval); // ট্র্যাকিং সাকসেসফুলি স্টপ করা হলো
                                 
                                 if (conclusion === "success") {
-                                    // যদি সফল হয়, তার Artifact আইডি খুঁজে বের করা
+                                    // সফল হলে Artifact আইডি ও ডাউনলোড জেনারেশন
                                     const artifactResp = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${latestRun.id}/artifacts`, {
                                         headers: { "Authorization": `token ${token}` }
                                     });
@@ -182,20 +235,20 @@
                                     if (artifactData.artifacts && artifactData.artifacts.length > 0) {
                                         const downloadUrl = `https://github.com/${repo}/actions/runs/${latestRun.id}/artifacts/${artifactData.artifacts[0].id}`;
                                         
-                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block shadow-md";
+                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block shadow-md border border-green-200";
                                         statusBox.innerHTML = `
-                                            🎉 অভিনন্দন! স্ক্র্যাপিং সফলভাবে সম্পূর্ণ হয়েছে এবং ফাইল রেডি!<br><br>
+                                            🎉 অভিনন্দন! স্ক্র্যাপিং ১০০% সফলভাবে সম্পূর্ণ হয়েছে!<br><br>
                                             <a href="${downloadUrl}" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 shadow">
-                                                📥 এক ক্লিকে আপনার ফাইলটি ডাউনলোড করুন
+                                                📥 এক ক্লিকে আউটপুট ফাইলটি ডাউনলোড করুন
                                             </a>
                                         `;
                                     } else {
-                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block";
-                                        statusBox.innerHTML = `🎉 স্ক্র্যাপিং সফল হয়েছে! কিন্তু ফাইলটি সরাসরি ডাউনলোডের লিংকে পেতে ১ মিনিট সময় লাগছে। <a href="https://github.com/${repo}/actions" target="_blank" class="underline text-indigo-600">এখানে ক্লিক করে গিটহাব থেকে নামিয়ে নিন।</a>`;
+                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block border border-green-200";
+                                        statusBox.innerHTML = `🎉 স্ক্র্যাপিং সফল হয়েছে! আর্টফ্যাক্ট ফাইলটি জেনারেট হতে ১ মিনিট সময় লাগতে পারে। <a href="https://github.com/${repo}/actions" target="_blank" class="underline text-indigo-600 font-bold">এখানে ক্লিক করে গিটহাব থেকে নামিয়ে নিন।</a>`;
                                     }
                                 } else {
-                                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-100 text-red-800 block";
-                                    statusBox.innerText = `❌ দুঃখিত, গিটহাব রানটি ফেইল্ড হয়েছে (${conclusion})! দয়া করে আপনার ইনপুট ডেটা চেক করুন।`;
+                                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-100 text-red-800 block border border-red-200";
+                                    statusBox.innerText = `❌ দুঃখিত, গিটহাব রানটি ফেইল্ড হয়েছে (${conclusion})! আপনার ইনপুট ডেটা বা টোকেন চেক করুন।`;
                                 }
                                 document.getElementById('runBtn').disabled = false;
                                 document.getElementById('runBtn').innerText = "🚀 স্ক্র্যাপার রান করুন";
@@ -203,9 +256,9 @@
                         }
                     }
                 } catch (err) {
-                    console.log("Status check checking failed:", err);
+                    console.log("Status check failed:", err);
                 }
-            }, 20000); // প্রতি ২০ সেকেন্ড পর পর গিটহাব ব্যাকএন্ড আপডেট চেক করবে
+            }, 7000); // প্রতি ৭ সেকেন্ড পর পর ইনস্ট্যান্ট লাইভ স্ট্যাটাস ফেচ করবে
         }
     </script>
 </body>
