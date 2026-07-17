@@ -1,0 +1,46 @@
+name: Google Maps Scraper Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_categories:
+        description: 'Categories to Include'
+        required: false
+        default: ''
+      exclude_domains:
+        description: 'Domains to Exclude'
+        required: false
+        default: ''
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Chrome and Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable libxss1 --no-install-recommends
+
+      - name: Install Project Dependencies
+        run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+
+      - name: Run Scraper
+        env:
+          INCLUDE_CATS: ${{ github.event.inputs.include_categories }}
+          EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
+        run: node scraper.js
+
+      - name: Upload Output CSV as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Scraped-Leads
+          path: output.csv
+          retention-days: 1
