@@ -22,8 +22,13 @@
         </div>
 
         <div class="space-y-6">
+            <!-- ম্যাপ লিংক ইনপুট অপশন -->
             <div>
-                <label class="block font-bold text-gray-700 mb-2">১. ইনপুট ফাইল আপলোড করুন (input.csv):</label>
+                <label class="block font-bold text-gray-700 mb-2">১. গুগল ম্যাপস লিংক দিন (একটার নিচে একটা পেস্ট করুন):</label>
+                <textarea id="mapLinks" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 mb-2" placeholder="https://www.google.com/maps/search/...&#10;https://www.google.com/maps/search/..."></textarea>
+                
+                <div class="text-center my-2 text-sm text-gray-400 font-bold">--- অথবা ফাইল আপলোড করুন ---</div>
+                
                 <input type="file" id="inputFile" accept=".csv" class="w-full p-2 border border-gray-300 rounded bg-gray-50">
             </div>
 
@@ -49,109 +54,130 @@
         document.getElementById('token').value = localStorage.getItem('git_token') || '';
         document.getElementById('repo').value = localStorage.getItem('git_repo') || '';
 
+        // টেক্সট ক্লিন করার ফাংশন
+        const cleanInput = (text) => {
+            if (!text) return "";
+            return text.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0).join(',');
+        };
+
         async function startScraper() {
             const token = document.getElementById('token').value.trim();
             const repo = document.getElementById('repo').value.trim();
+            const mapLinksRaw = document.getElementById('mapLinks').value.trim();
             const fileInput = document.getElementById('inputFile').files[0];
             const categoriesRaw = document.getElementById('categories').value.trim();
             const domainsRaw = document.getElementById('domains').value.trim();
             const statusBox = document.getElementById('statusBox');
             const runBtn = document.getElementById('runBtn');
 
-            if (!token || !repo || !fileInput) {
-                alert("দয়া করে টোকেন, রেপো এবং ইনপুট CSV ফাইল সিলেক্ট করুন!");
+            if (!token || !repo) {
+                alert("দয়া করে গিটহাব টোকেন এবং রিপোজিটরি নাম দিন!");
+                return;
+            }
+
+            if (!mapLinksRaw && !fileInput) {
+                alert("দয়া করে ১ নম্বর বক্সে ম্যাপ লিংক পেস্ট করুন অথবা একটি input.csv ফাইল আপলোড করুন!");
                 return;
             }
 
             localStorage.setItem('git_token', token);
             localStorage.setItem('git_repo', repo);
 
-            // নিউ-লাইন বা কমা যাই থাকুক, সেটাকে প্রসেস করে স্ট্যান্ডার্ড ফরম্যাটে নেওয়া
-            const cleanInput = (text) => {
-                if (!text) return "";
-                return text.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0).join(',');
-            };
-
             const categories = cleanInput(categoriesRaw);
             const domains = cleanInput(domainsRaw);
 
             runBtn.disabled = true;
-            runBtn.innerText = "⏳ ফাইল আপলোড ও প্রসেস হচ্ছে...";
+            runBtn.innerText = "⏳ ফাইল প্রসেস হচ্ছে...";
             statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-blue-50 text-blue-700 block";
-            statusBox.innerText = "গিটহাবে input.csv ফাইল পাঠানো হচ্ছে...";
+            statusBox.innerText = "গিটহাবে ডাটা পাঠানো হচ্ছে...";
 
-            const reader = new FileReader();
-            reader.readAsText(fileInput);
-            reader.onload = async function (e) {
-                const csvContent = e.target.result;
-                const base64Content = btoa(unescape(encodeURIComponent(csvContent)));
+            // ডেটা থেকে CSV কন্টেন্ট তৈরি বা ফাইল থেকে রিড করার লজিক
+            let csvContent = "";
 
+            if (mapLinksRaw) {
+                // সরাসরি লিংক দিলে সেটাকে স্বয়ংক্রিয়ভাবে CSV ফরম্যাটে সাজানো
+                const linksArray = mapLinksRaw.split('\n').map(l => l.trim()).filter(Boolean);
+                csvContent = "search_links\n" + linksArray.map(link => `"${link}"`).join("\n");
+                await uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn);
+            } else if (fileInput) {
+                // ফাইল দিলে ফাইল রিড করা
+                const reader = new FileReader();
+                reader.readAsText(fileInput);
+                reader.onload = async function (e) {
+                    csvContent = e.target.result;
+                    await uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn);
+                };
+            }
+        }
+
+        async function uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn) {
+            const base64Content = btoa(unescape(encodeURIComponent(csvContent)));
+
+            try {
+                let sha = "";
                 try {
-                    let sha = "";
-                    try {
-                        const fileCheck = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
-                            headers: { "Authorization": `token ${token}` }
-                        });
-                        if (fileCheck.ok) {
-                            const fileData = await fileCheck.json();
-                            sha = fileData.sha;
-                        }
-                    } catch (err) {}
-
-                    const uploadFile = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
-                        method: "PUT",
-                        headers: {
-                            "Authorization": `token ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            message: "Upload input.csv via Web Panel",
-                            content: base64Content,
-                            sha: sha ? sha : undefined
-                        })
+                    const fileCheck = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
+                        headers: { "Authorization": `token ${token}` }
                     });
-
-                    if (!uploadFile.ok) throw new Error("input.csv ফাইল গিটহাবে আপলোড করতে ব্যর্থ হয়েছে!");
-
-                    statusBox.innerText = "🚀 ফাইল আপলোড সফল! এবার স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু করা হচ্ছে...";
-
-                    const triggerWorkflow = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `token ${token}`,
-                            "Accept": "application/vnd.github.v3+json",
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            ref: "main",
-                            inputs: {
-                                include_categories: categories,
-                                exclude_domains: domains
-                            }
-                        })
-                    });
-
-                    if (triggerWorkflow.status === 204) {
-    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
-    statusBox.innerHTML = `
-        🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br>
-        <span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর নিচের লিংকে ক্লিক করে ফাইলটি ডাউনলোড করে নিন:</span><br><br>
-        <a href="https://github.com/${repo}/actions" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2">
-            📥 সরাসরি এখানে ক্লিক করে ফাইল ডাউনলোড করুন
-        </a>
-    `;
-} else {
-                        throw new Error("Workflow রান করা যায়নি। scrape.yml ফাইলটি চেক করুন।");
+                    if (fileCheck.ok) {
+                        const fileData = await fileCheck.json();
+                        sha = fileData.sha;
                     }
+                } catch (err) {}
 
-                } catch (error) {
-                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-50 text-red-700 block";
-                    statusBox.innerText = "❌ এরর: " + error.message;
-                } finally {
-                    runBtn.disabled = false;
-                    runBtn.innerText = "🚀 স্ক্র্যাপার রান করুন";
+                const uploadFile = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": `token ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        message: "Update input.csv via Web Panel (Links/File)",
+                        content: base64Content,
+                        sha: sha ? sha : undefined
+                    })
+                });
+
+                if (!uploadFile.ok) throw new Error("input.csv ফাইল গিটহাবে সেভ করতে ব্যর্থ হয়েছে!");
+
+                statusBox.innerText = "🚀 ডাটা গিটহাবে পৌঁছেছে! এবার স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু করা হচ্ছে...";
+
+                const triggerWorkflow = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `token ${token}`,
+                        "Accept": "application/vnd.github.v3+json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        ref: "main",
+                        inputs: {
+                            include_categories: categories,
+                            exclude_domains: domains
+                        }
+                    })
+                });
+
+                if (triggerWorkflow.status === 204) {
+                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
+                    statusBox.innerHTML = `
+                        🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br>
+                        <span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর নিচের লিংকে ক্লিক করে ফাইলটি ডাউনলোড করে নিন:</span><br><br>
+                        <a href="https://github.com/${repo}/actions" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2">
+                            📥 সরাসরি এখানে ক্লিক করে ফাইল ডাউনলোড করুন
+                        </a>
+                    `;
+                } else {
+                    throw new Error("Workflow রান করা যায়নি।");
                 }
-            };
+
+            } catch (error) {
+                statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-50 text-red-700 block";
+                statusBox.innerText = "❌ এরর: " + error.message;
+            } finally {
+                runBtn.disabled = false;
+                runBtn.innerText = "🚀 স্ক্র্যাপার রান করুন";
+            }
         }
     </script>
 </body>
