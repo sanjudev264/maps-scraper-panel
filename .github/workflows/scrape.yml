@@ -39,8 +39,7 @@ jobs:
         run: node scraper.js
 
       - name: Upload Output CSV as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Scraped-Leads
-          path: output.csv
-          retention-days: 1
+          path: ./output.csv
