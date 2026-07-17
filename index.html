@@ -28,13 +28,13 @@
             </div>
 
             <div>
-                <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে আলাদা করুন):</label>
-                <textarea id="categories" rows="3" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"></textarea>
+                <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
+                <textarea id="categories" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="Air duct&#10;Asbestos&#10;Restoration"></textarea>
             </div>
 
             <div>
-                <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে আলাদা করুন):</label>
-                <textarea id="domains" rows="3" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"></textarea>
+                <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
+                <textarea id="domains" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="servpro.com&#10;pauldavis.com"></textarea>
             </div>
 
             <button onclick="startScraper()" id="runBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
@@ -46,7 +46,6 @@
     </div>
 
     <script>
-        // আগের টোকেন ও রেপো মনে রাখা
         document.getElementById('token').value = localStorage.getItem('git_token') || '';
         document.getElementById('repo').value = localStorage.getItem('git_repo') || '';
 
@@ -54,8 +53,8 @@
             const token = document.getElementById('token').value.trim();
             const repo = document.getElementById('repo').value.trim();
             const fileInput = document.getElementById('inputFile').files[0];
-            const categories = document.getElementById('categories').value.trim();
-            const domains = document.getElementById('domains').value.trim();
+            const categoriesRaw = document.getElementById('categories').value.trim();
+            const domainsRaw = document.getElementById('domains').value.trim();
             const statusBox = document.getElementById('statusBox');
             const runBtn = document.getElementById('runBtn');
 
@@ -67,12 +66,20 @@
             localStorage.setItem('git_token', token);
             localStorage.setItem('git_repo', repo);
 
+            // নিউ-লাইন বা কমা যাই থাকুক, সেটাকে প্রসেস করে স্ট্যান্ডার্ড ফরম্যাটে নেওয়া
+            const cleanInput = (text) => {
+                if (!text) return "";
+                return text.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0).join(',');
+            };
+
+            const categories = cleanInput(categoriesRaw);
+            const domains = cleanInput(domainsRaw);
+
             runBtn.disabled = true;
             runBtn.innerText = "⏳ ফাইল আপলোড ও প্রসেস হচ্ছে...";
             statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-blue-50 text-blue-700 block";
             statusBox.innerText = "গিটহাবে input.csv ফাইল পাঠানো হচ্ছে...";
 
-            // ফাইল রিড করা এবং Base64 এ কনভার্ট করা
             const reader = new FileReader();
             reader.readAsText(fileInput);
             reader.onload = async function (e) {
@@ -80,7 +87,6 @@
                 const base64Content = btoa(unescape(encodeURIComponent(csvContent)));
 
                 try {
-                    // ১. গিটহাবে input.csv ফাইলটি সরাসরি রাইট/আপডেট করা
                     let sha = "";
                     try {
                         const fileCheck = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
@@ -109,7 +115,6 @@
 
                     statusBox.innerText = "🚀 ফাইল আপলোড সফল! এবার স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু করা হচ্ছে...";
 
-                    // ২. গিটহাব অ্যাকশনস ট্রিপ করা (Workflow Dispatch)
                     const triggerWorkflow = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
                         method: "POST",
                         headers: {
@@ -130,7 +135,7 @@
                         statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
                         statusBox.innerHTML = "🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br><span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর গিটহাবের Actions ট্যাব থেকে জিপ ফাইলটি ডাউনলোড করে নিন।</span>";
                     } else {
-                        throw new Error("Workflow রান করা যায়নি। scrape.yml ফাইলের নাম বা ভেতরের কোড চেক করুন।");
+                        throw new Error("Workflow রান করা যায়নি। scrape.yml ফাইলটি চেক করুন।");
                     }
 
                 } catch (error) {
