@@ -132,9 +132,15 @@
                     });
 
                     if (triggerWorkflow.status === 204) {
-                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
-                        statusBox.innerHTML = "🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br><span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর গিটহাবের Actions ট্যাব থেকে জিপ ফাইলটি ডাউনলোড করে নিন।</span>";
-                    } else {
+    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
+    statusBox.innerHTML = `
+        🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br>
+        <span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর নিচের লিংকে ক্লিক করে ফাইলটি ডাউনলোড করে নিন:</span><br><br>
+        <a href="https://github.com/${repo}/actions" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2">
+            📥 সরাসরি এখানে ক্লিক করে ফাইল ডাউনলোড করুন
+        </a>
+    `;
+} else {
                         throw new Error("Workflow রান করা যায়নি। scrape.yml ফাইলটি চেক করুন।");
                     }
 
