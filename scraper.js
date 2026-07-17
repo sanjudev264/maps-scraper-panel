@@ -6,13 +6,12 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// গিটহাব ওয়েব প্যানেল থেকে পাঠানো ক্যাটাগরি ও ডোমেইন রিড করা
 const rawInclude = process.env.INCLUDE_CATS || "";
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 
-// প্যানেলে ইনপুট না দিলে এই ডিফল্ট কি-ওয়ার্ডগুলো কাজ করবে
+// প্যানেল থেকে পাঠানো ডেটা অথবা ডিফল্ট লিস্ট নেওয়া
 const targetKeywords = rawInclude 
-  ? rawInclude.split(',').map(item => item.trim().toLowerCase()) 
+  ? rawInclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [
       "air duct", "asbestos", "restoration", "carpet", "construction", 
       "contractor", "damage", "debris", "demolition", "environmental", 
@@ -20,9 +19,8 @@ const targetKeywords = rawInclude
       "remodel", "roofing", "water"
     ];
 
-// প্যানেলে ইনপুট না দিলে এই ডিফল্ট ডোমেইনগুলো এক্সক্লুড হবে
 const excludedDomainsRaw = rawExclude 
-  ? rawExclude.split(',').map(item => item.trim().toLowerCase()) 
+  ? rawExclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [];
 
 function isExcludedWebsite(url) {
@@ -40,7 +38,6 @@ function isExcludedWebsite(url) {
       'cottonholdings.com', 'bmscat.com'
     ];
 
-    // গিটহাব প্যানেল থেকে কোনো ডোমেইন দিলে সেটি ব্যবহার হবে, না দিলে ডিফল্ট লিস্ট কাজ করবে
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
 
     const isFranchise = excludedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
