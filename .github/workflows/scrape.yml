@@ -1,14 +1,14 @@
-name: Google Maps Scraper Runner
+name: Google Maps Scraper
 
 on:
   workflow_dispatch:
     inputs:
       include_categories:
-        description: 'Categories to Include'
+        description: 'Categories to include (comma separated)'
         required: false
         default: ''
       exclude_domains:
-        description: 'Domains to Exclude'
+        description: 'Domains to exclude (comma separated)'
         required: false
         default: ''
 
@@ -16,7 +16,7 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Setup Node.js
@@ -24,22 +24,12 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Chrome and Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable libxss1 --no-install-recommends
-
-      - name: Install Project Dependencies
-        run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+      - name: Install Dependencies
+        run: npm install
 
       - name: Run Scraper
+        # এখানে ইনপুটগুলোকে এনভায়রনমেন্ট ভেরিয়েবল (Environment Variables) হিসেবে স্ক্রিপ্টে পাস করা হচ্ছে
         env:
-          INCLUDE_CATS: ${{ github.event.inputs.include_categories }}
+          INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
           EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
-        run: node scraper.js
-
-      - name: Upload Output CSV as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Scraped-Leads
-          path: ./output.csv
+        run: node index.js  # আপনার স্ক্রিপ্টের নাম ভিন্ন হলে সেটি দিন (যেমন: scraper.js)
