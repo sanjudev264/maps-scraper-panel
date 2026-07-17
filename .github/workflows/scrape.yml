@@ -4,32 +4,46 @@ on:
   workflow_dispatch:
     inputs:
       include_categories:
-        description: 'Categories to include (comma separated)'
+        description: 'Categories to include'
         required: false
         default: ''
       exclude_domains:
-        description: 'Domains to exclude (comma separated)'
+        description: 'Domains to exclude'
         required: false
         default: ''
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install
+    - name: Install dependencies
+      run: |
+        npm install puppeteer-extra puppeteer-extra-plugin-stealth puppeteer
 
-      - name: Run Scraper
-        # এখানে ইনপুটগুলোকে এনভায়রনমেন্ট ভেরিয়েবল (Environment Variables) হিসেবে স্ক্রিপ্টে পাস করা হচ্ছে
-        env:
-          INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
-          EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
-        run: node index.js  # আপনার স্ক্রিপ্টের নাম ভিন্ন হলে সেটি দিন (যেমন: scraper.js)
+    # 💡 এখানে আমরা চেক করছি আপনার ফাইল index.js নাকি scraper.js, যেটিই হোক স্ক্রিপ্ট রান হবেই!
+    - name: Run Scraper Script
+      env:
+        INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
+        EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
+      run: |
+        if [ -f "scraper.js" ]; then
+          node scraper.js
+        else
+          node index.js
+        fi
+
+    - name: Upload Output Artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: google-maps-leads
+        path: output.csv
