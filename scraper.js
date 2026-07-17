@@ -6,10 +6,11 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const rawInclude = process.env.INCLUDE_CATS || "";
+// 🔄 ফ্রন্টএন্ড প্যানেল ও গিটহাব অ্যাকশনস (scrape.yml) এর ভেরিয়েবলের সাথে ম্যাচিং
+const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 
-// প্যানেল থেকে পাঠানো ডেটা অথবা ডিফল্ট লিস্ট নেওয়া
+// প্যানেল থেকে পাঠানো ডেটা অথবা ডিফল্ট লিস্ট নেওয়া
 const targetKeywords = rawInclude 
   ? rawInclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [
@@ -38,6 +39,7 @@ function isExcludedWebsite(url) {
       'cottonholdings.com', 'bmscat.com'
     ];
 
+    // 💡 আপনার নতুন রিকোয়েস্ট অনুযায়ী: প্যানেলে নতুন লিস্ট দিলে শুধু সেটাই কাজ করবে, ফাঁকা থাকলে ডিফল্ট লিস্ট কাজ করবে
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
 
     const isFranchise = excludedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
@@ -82,6 +84,7 @@ async function runUltimateScraper() {
     }
   }
 
+  console.log(`[INFO] Active Target Keywords: ${targetKeywords.join(', ')}`);
   console.log(`[INFO] Total search links in input: ${searchLinks.length}`);
   console.log(`[INFO] Already processed: ${completedLinks.length} links.`);
   
@@ -128,7 +131,7 @@ async function runUltimateScraper() {
         if (name) uniqueTracker.add(name);
       }
     }
-    console.log(`   └─ Loaded ${uniqueTracker.size} unique keys successfully.\n`);
+    console.log(`    └─ Loaded ${uniqueTracker.size} unique keys successfully.\n`);
   } else {
     const BOM = '\uFEFF';
     fs.writeFileSync(outputFile, BOM + 'Company Name,Website,Phone,Address,Google Maps Link\n', 'utf-8');
@@ -145,7 +148,7 @@ async function runUltimateScraper() {
 
       const sidebarSelector = '.m6QErb[aria-label]';
       
-      console.log(`   └─ Scrolling sidebar...`);
+      console.log(`    └─ Scrolling sidebar...`);
       for (let scrollCount = 0; scrollCount < 3; scrollCount++) {
         await page.evaluate((selector) => {
           const sidebar = document.querySelector(selector);
@@ -155,7 +158,7 @@ async function runUltimateScraper() {
       }
 
       const companyElements = await page.$$('a[href*="/maps/place/"]');
-      console.log(`   └─ Found ${companyElements.length} companies. Analyzing each...`);
+      console.log(`    └─ Found ${companyElements.length} companies. Analyzing each...`);
 
       for (let j = 0; j < companyElements.length; j++) {
         let companyDetails = null;
@@ -234,7 +237,7 @@ async function runUltimateScraper() {
             }
 
             if (!isTarget) {
-              console.log(`      [-] Skipped: ${companyName} (No matching Category/Name found)`);
+              console.log(`      [-] Skipped: ${companyName} (No matching Category/Name found: "${category}")`);
               continue;
             }
 
@@ -266,10 +269,10 @@ async function runUltimateScraper() {
 
       completedLinks.push(searchUrl);
       fs.writeFileSync(progressFile, JSON.stringify(completedLinks, null, 2), 'utf-8');
-      console.log(`   ✔️ Marked as completed in progress tracker.`);
+      console.log(`    ✔️ Marked as completed in progress tracker.`);
 
     } catch (err) {
-      console.error(`   ❌ Error: ${err.message}`);
+      console.error(`    ❌ Error: ${err.message}`);
     }
   }
 
