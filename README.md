@@ -1,54 +1,60 @@
 # 📍 Google Maps Lead Scraper Panel
 
-একটি শক্তিশালী এবং সম্পূর্ণ ক্লাউড-ভিত্তিক **Google Maps Lead Scraper**। কোনো কোডিং বা কীবোর্ডের ঝামেলা ছাড়াই একটি সহজ ওয়েব প্যানেলের মাধ্যমে সরাসরি গুগল ম্যাপস থেকে টার্গেটেড লিড (কোম্পানির নাম, ফোন নম্বর, ওয়েবসাইট, অ্যাড্রেস এবং ম্যাপ লিংক) স্ক্র্যাপ করা যায়।
+A powerful, fully cloud-based **Google Maps Lead Scraper** with a user-friendly web interface. Scrape targeted B2B leads (Business Name, Phone, Website, Address, and Maps Link) directly via GitHub Actions—without burning your own PC's RAM or CPU!
 
 ---
 
-## ✨ বৈশিষ্ট্যসমূহ (Features)
+## ✨ Features
 
-*   **⚡ ক্লাউড-ভিত্তিক স্ক্র্যাপিং:** আপনার পিসির র‍্যাম বা প্রসেসর খরচ হবে না, পুরো স্ক্র্যাপিং প্রসেসটি চলবে গিটহাবের (GitHub Actions) ক্লাউড সার্ভারে।
-*   **🔗 ডাইরেক্ট ম্যাপ লিংক ইনপুট:** কোনো CSV ফাইল বানানোর ঝামেলা নেই। সরাসরি গুগল ম্যাপসের এক বা একাধিক সার্চ লিংক পেস্ট করে দিলেই স্ক্র্যাপার কাজ শুরু করবে।
-*   **🎯 স্মার্ট ফিল্টারিং:** আপনি চাইলে নির্দিষ্ট ক্যাটাগরির লিড রাখতে পারেন এবং বড় বড় ফ্র্যাঞ্চাইজি ডোমেইনগুলো (যেমন: servpro.com) স্বয়ংক্রিয়ভাবে বাদ দিতে পারেন।
-*   **🔄 ডুপ্লিকেট রিমুভাল:** একই লিড বা একই ফোন নম্বর বারবার ডাটাতে আসবে না, স্ক্রিপ্ট নিজে থেকেই ডুপ্লিকেট ডাটা ফিল্টার করে ফেলে।
-*   **⏳ লাইভ স্ট্যাটাস ট্র্যাকিং:** স্ক্র্যাপার ব্যাকগ্রাউন্ডে কতটুকু কাজ করল, তা ওয়েব প্যানেলে লাইভ দেখা যায়।
-*   **📥 ওয়ান-ক্লিক ডাউনলোড:** স্ক্র্যাপিং শেষ হওয়া মাত্রই ওয়েব প্যানেলে সরাসরি ডাউনলোড বাটন চলে আসে। গিটহাবের ভেতরে গিয়ে ফাইল খোঁজার কোনো প্রয়োজন নেই।
-
----
-
-## 🛠️ সেটআপ গাইড (Setup Guide)
-
-প্রজেক্টটি প্রথমবার চালু করার জন্য নিচের ধাপগুলো অনুসরণ করুন:
-
-### ১. গিটহাব টোকেন তৈরি করুন (GitHub Personal Access Token)
-*   আপনার গিটহাবের **Settings > Developer Settings > Personal Access Tokens > Tokens (classic)**-এ যান।
-*   **Generate new token (classic)**-এ ক্লিক করুন।
-*   নোট হিসেবে `Scraper-Token` দিন এবং স্কোপ (Scopes) থেকে **`repo`** ও **`workflow`** অপশন দুটিতে টিক চিহ্ন দিন।
-*   টোকেনটি জেনারেট করে কোথাও নিরাপদে কপি করে রাখুন (এটি আপনার পাসওয়ার্ডের মতো কাজ করবে)।
-
-### ২. গنوان পেজ চালু করুন (GitHub Pages Enable)
-*   আপনার রিপোজিটরির **Settings > Pages** ট্যাবে যান।
-*   **Build and deployment** সেকশনের Source অপশন থেকে `Deploy from a branch` সিলেক্ট করুন।
-*   Branch হিসেবে **`main`** এবং ফোল্ডার `/root` সিলেক্ট করে **Save** করুন।
-*   ১-২ মিনিট পর গিটহাব আপনাকে একটি লাইভ লিংক দেবে (যেমন: `https://yourusername.github.io/repo-name/`)।
+*   **☁️ 100% Cloud-Based:** The actual scraping process (Puppeteer/Browser automation) runs on GitHub's cloud servers, meaning **zero lag** on your local computer.
+*   **🔗 Direct Map Links:** No need to manually create CSV files. Just copy and paste one or multiple Google Maps search URLs directly into the text box.
+*   **🎯 Smart Filtering:** Keep only specific business categories and automatically exclude unwanted major franchise domains (e.g., `servpro.com`, `pauldavis.com`).
+*   **🔄 Auto-De-duplication:** Automatically filters out duplicate business listings or phone numbers before exporting.
+*   **⏳ Live Status Tracking:** Watch the progress live on the web panel without ever needing to log into GitHub.
+*   **📥 One-Click Direct Download:** Once the scraping is finished, a download button appears directly on your web panel.
 
 ---
 
-## 🚀 কীভাবে ব্যবহার করবেন? (How to Use)
+## 🛠️ Setup Guide (For New Users)
 
-1.  গিটহাব পেজেস থেকে পাওয়া আপনার **লাইভ ওয়েব প্যানেল লিংকটি** ওপেন করুন।
-2.  **GitHub Personal Access Token** বক্সে আপনার তৈরি করা গোপন টোকেনটি দিন।
-3.  **Repository** বক্সে আপনার গিটহাবের ফরম্যাট অনুযায়ী নাম দিন (যেমন: `sanjudev246/maps-scraper-panel`)।
-4.  **১ নম্বর বক্সে** গুগল ম্যাপস থেকে সার্চ করা লিংকগুলো একটার নিচে একটা পেস্ট করুন (অথবা চাইলে পুরানো পদ্ধতিতে `input.csv` ফাইলও আপলোড করতে পারেন)।
-5.  **২ ও ৩ নম্বর বক্সে** আপনার প্রয়োজনীয় ক্যাটাগরি এবং বাদ দিতে চাওয়া ডোমেইনগুলো পেস্ট করুন (Enter চেপে একটার নিচে একটা দিতে পারেন)।
-6.  **"🚀 স্ক্র্যাপার রান করুন"** বাটনে ক্লিক করুন।
-7.  পেজটি এভাবেই খোলা রাখুন। স্ক্র্যাপিং শেষ হলে স্বয়ংক্রিয়ভাবে একটি সবুজ রঙের **"📥 এক ক্লিকে আপনার ফাইলটি ডাউনলোড করুন"** বাটন চলে আসবে। সেখানে ক্লিক করলেই আপনার এক্সেল/সিএসভি ফাইলটি ডাউনলোড হয়ে যাবে!
+To deploy your own instance of this panel, follow these quick steps:
+
+### 0. Fork and Enable Actions
+Before starting, you **MUST** fork this repository to your own GitHub account:
+*   Click the **"Fork"** button at the top right of this page to create a copy under your account.
+*   After forking, go to the **Actions** tab of your new repository and click the green button that says **"I understand my workflows, go ahead and enable them"**. *(Crucial step!)*
+
+### 1. Generate a GitHub Personal Access Token
+*   Go to your GitHub Account **Settings > Developer Settings > Personal Access Tokens > Tokens (classic)**.
+*   Click **Generate new token (classic)**.
+*   Give it a note (e.g., `Maps-Scraper`).
+*   Select the following scopes: **`repo`** and **`workflow`**.
+*   Click generate, and copy the token safely. *(Treat it like a password!)*
+
+### 2. Enable GitHub Pages
+*   Go to your repository's **Settings > Pages** tab.
+*   Under **Build and deployment**, set the Source to `Deploy from a branch`.
+*   Choose your branch as **`main`** and the folder as `/ (root)`, then click **Save**.
+*   Within 1–2 minutes, GitHub will give you a live URL (e.g., `https://yourusername.github.io/your-repo-name/`).
 
 ---
 
-## 🔒 নিরাপত্তা (Security & Privacy)
+## 🚀 How to Use
 
-*   **১০০% নিরাপদ:** আপনার দেওয়া পার্সোনাল অ্যাক্সেস টোকেন বা রিপোজিটরি ডেটা কোনো থার্ড-পার্টি ডাটাবেজে সেভ হয় না। এটি সম্পূর্ণ আপনার ব্রাউজারের নিজস্ব মেমোরিতে (LocalStorage) থাকে।
-*   **প্রাইভেট সাপোর্ট:** আপনি চাইলে আপনার এই রিপোজিটরিটিকে **Private** করে রাখতে পারেন, এতে আপনার কোড বা ডাটা কেউ দেখতে পারবে না, কিন্তু আপনার লাইভ প্যানেলটি নিখুঁতভাবে কাজ করবে।
+1.  Open your **GitHub Pages Live URL**.
+2.  Paste your **GitHub Personal Access Token** into the token field.
+3.  Enter your **Repository path** (Format: `your-github-username/your-repo-name`).
+4.  **Step 1:** Paste your Google Maps search links (one per line) into the box. *(Alternatively, you can still upload a traditional `input.csv` file).*
+5.  **Step 2 & 3:** Enter the categories you want to include and domains you want to exclude (one per line).
+6.  Click the **"🚀 Run Scraper"** button.
+7.  Keep the tab open. The panel will track the cloud progress live. Once completed, a green **"📥 Download File"** button will dynamically appear. Click it to download your fresh leads!
 
 ---
-💡 *তৈরি করেছেন [Sanjudev](https://github.com/sanjudev246)*
+
+## 🔒 Security & Privacy
+
+*   **Client-Side Security:** Your GitHub Personal Access Token is saved **only** in your local browser storage (`LocalStorage`). It is never sent to any third-party server or database.
+*   **Private Repo Friendly:** You can keep this repository completely **Private** to protect your code and scraped data; the GitHub Pages panel will still work perfectly for you.
+
+---
+💡 *Maintained by [Sanjudev](https://github.com/sanjudev246)*
