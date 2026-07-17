@@ -22,24 +22,21 @@
         </div>
 
         <div class="space-y-6">
-            <!-- ম্যাপ লিংক ইনপুট অপশন -->
             <div>
                 <label class="block font-bold text-gray-700 mb-2">১. গুগল ম্যাপস লিংক দিন (একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="mapLinks" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 mb-2" placeholder="https://www.google.com/maps/search/...&#10;https://www.google.com/maps/search/..."></textarea>
-                
+                <textarea id="mapLinks" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 mb-2" placeholder="https://www.google.com/maps/search/..."></textarea>
                 <div class="text-center my-2 text-sm text-gray-400 font-bold">--- অথবা ফাইল আপলোড করুন ---</div>
-                
                 <input type="file" id="inputFile" accept=".csv" class="w-full p-2 border border-gray-300 rounded bg-gray-50">
             </div>
 
             <div>
                 <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="categories" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="Air duct&#10;Asbestos&#10;Restoration"></textarea>
+                <textarea id="categories" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="Air duct&#10;Asbestos"></textarea>
             </div>
 
             <div>
                 <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="domains" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="servpro.com&#10;pauldavis.com"></textarea>
+                <textarea id="domains" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="servpro.com"></textarea>
             </div>
 
             <button onclick="startScraper()" id="runBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
@@ -54,7 +51,6 @@
         document.getElementById('token').value = localStorage.getItem('git_token') || '';
         document.getElementById('repo').value = localStorage.getItem('git_repo') || '';
 
-        // টেক্সট ক্লিন করার ফাংশন
         const cleanInput = (text) => {
             if (!text) return "";
             return text.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0).join(',');
@@ -74,9 +70,8 @@
                 alert("দয়া করে গিটহাব টোকেন এবং রিপোজিটরি নাম দিন!");
                 return;
             }
-
             if (!mapLinksRaw && !fileInput) {
-                alert("দয়া করে ১ নম্বর বক্সে ম্যাপ লিংক পেস্ট করুন অথবা একটি input.csv ফাইল আপলোড করুন!");
+                alert("দয়া করে ম্যাপ লিংক দিন অথবা ফাইল আপলোড করুন!");
                 return;
             }
 
@@ -91,16 +86,12 @@
             statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-blue-50 text-blue-700 block";
             statusBox.innerText = "গিটহাবে ডাটা পাঠানো হচ্ছে...";
 
-            // ডেটা থেকে CSV কন্টেন্ট তৈরি বা ফাইল থেকে রিড করার লজিক
             let csvContent = "";
-
             if (mapLinksRaw) {
-                // সরাসরি লিংক দিলে সেটাকে স্বয়ংক্রিয়ভাবে CSV ফরম্যাটে সাজানো
                 const linksArray = mapLinksRaw.split('\n').map(l => l.trim()).filter(Boolean);
                 csvContent = "search_links\n" + linksArray.map(link => `"${link}"`).join("\n");
                 await uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn);
             } else if (fileInput) {
-                // ফাইল দিলে ফাইল রিড করা
                 const reader = new FileReader();
                 reader.readAsText(fileInput);
                 reader.onload = async function (e) {
@@ -112,7 +103,6 @@
 
         async function uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn) {
             const base64Content = btoa(unescape(encodeURIComponent(csvContent)));
-
             try {
                 let sha = "";
                 try {
@@ -127,20 +117,13 @@
 
                 const uploadFile = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
                     method: "PUT",
-                    headers: {
-                        "Authorization": `token ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        message: "Update input.csv via Web Panel (Links/File)",
-                        content: base64Content,
-                        sha: sha ? sha : undefined
-                    })
+                    headers: { "Authorization": `token ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: "Update input.csv via Panel", content: base64Content, sha: sha ? sha : undefined })
                 });
 
-                if (!uploadFile.ok) throw new Error("input.csv ফাইল গিটহাবে সেভ করতে ব্যর্থ হয়েছে!");
+                if (!uploadFile.ok) throw new Error("input.csv ফাইল আপলোড ফেইল্ড!");
 
-                statusBox.innerText = "🚀 ডাটা গিটহাবে পৌঁছেছে! এবার স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু করা হচ্ছে...";
+                statusBox.innerText = "🚀 স্ক্র্যাপার ক্লাউডে চালু হচ্ছে...";
 
                 const triggerWorkflow = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
                     method: "POST",
@@ -149,35 +132,80 @@
                         "Accept": "application/vnd.github.v3+json",
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({
-                        ref: "main",
-                        inputs: {
-                            include_categories: categories,
-                            exclude_domains: domains
-                        }
-                    })
+                    body: JSON.stringify({ ref: "main", inputs: { include_categories: categories, exclude_domains: domains } })
                 });
 
                 if (triggerWorkflow.status === 204) {
-                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-50 text-green-700 block";
-                    statusBox.innerHTML = `
-                        🎉 স্ক্র্যাপার গিটহাব ক্লাউডে সফলভাবে চালু হয়েছে!<br>
-                        <span class='text-sm text-gray-600'>আপনার ডাটার সাইজ অনুযায়ী ৫-১০ মিনিট পর নিচের লিংকে ক্লিক করে ফাইলটি ডাউনলোড করে নিন:</span><br><br>
-                        <a href="https://github.com/${repo}/actions" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 mt-2">
-                            📥 সরাসরি এখানে ক্লিক করে ফাইল ডাউনলোড করুন
-                        </a>
-                    `;
+                    // সফলভাবে চালু হলে লাইভ ট্র্যাকিং শুরু হবে
+                    trackLiveStatus(token, repo, statusBox);
                 } else {
                     throw new Error("Workflow রান করা যায়নি।");
                 }
-
             } catch (error) {
                 statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-50 text-red-700 block";
                 statusBox.innerText = "❌ এরর: " + error.message;
-            } finally {
                 runBtn.disabled = false;
-                runBtn.innerText = "🚀 স্ক্র্যাপার রান করুন";
+                runBtn.innerText = "🚀 স্ক্র্যাপার run করুন";
             }
+        }
+
+        // গিটহাবের রান লাইভ ট্র্যাক করার ফাংশন
+        function trackLiveStatus(token, repo, statusBox) {
+            statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-yellow-50 text-yellow-800 block animate-pulse";
+            statusBox.innerHTML = "⏳ স্ক্র্যাপার বর্তমানে লাইভ ডেটা কালেকশন করছে...<br><span class='text-xs text-gray-500' id='timer-text'>পেজটি এভাবেই খোলা রাখুন, কাজ শেষ হলে অটোমেটিক ডাউনলোডের বাটন চলে আসবে। (চেক করা হচ্ছে...)</span>";
+
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs?per_page=1`, {
+                        headers: { "Authorization": `token ${token}`, "Accept": "application/vnd.github.v3+json" }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.workflow_runs && data.workflow_runs.length > 0) {
+                            const latestRun = data.workflow_runs[0];
+                            const status = latestRun.status;         // queued, in_progress, completed
+                            const conclusion = latestRun.conclusion; // success, failure, etc.
+
+                            if (status === "in_progress" || status === "queued") {
+                                document.getElementById('timer-text').innerText = `স্ক্র্যাপার রানিং আছে... (স্ট্যাটাস: ${status})`;
+                            } else if (status === "completed") {
+                                clearInterval(interval); // ট্র্যাকিং স্টপ
+                                
+                                if (conclusion === "success") {
+                                    // যদি সফল হয়, তার Artifact আইডি খুঁজে বের করা
+                                    const artifactResp = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${latestRun.id}/artifacts`, {
+                                        headers: { "Authorization": `token ${token}` }
+                                    });
+                                    const artifactData = await artifactResp.json();
+                                    
+                                    if (artifactData.artifacts && artifactData.artifacts.length > 0) {
+                                        const downloadUrl = `https://github.com/${repo}/actions/runs/${latestRun.id}/artifacts/${artifactData.artifacts[0].id}`;
+                                        
+                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block shadow-md";
+                                        statusBox.innerHTML = `
+                                            🎉 অভিনন্দন! স্ক্র্যাপিং সফলভাবে সম্পূর্ণ হয়েছে এবং ফাইল রেডি!<br><br>
+                                            <a href="${downloadUrl}" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 shadow">
+                                                📥 এক ক্লিকে আপনার ফাইলটি ডাউনলোড করুন
+                                            </a>
+                                        `;
+                                    } else {
+                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block";
+                                        statusBox.innerHTML = `🎉 স্ক্র্যাপিং সফল হয়েছে! কিন্তু ফাইলটি সরাসরি ডাউনলোডের লিংকে পেতে ১ মিনিট সময় লাগছে। <a href="https://github.com/${repo}/actions" target="_blank" class="underline text-indigo-600">এখানে ক্লিক করে গিটহাব থেকে নামিয়ে নিন।</a>`;
+                                    }
+                                } else {
+                                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-100 text-red-800 block";
+                                    statusBox.innerText = `❌ দুঃখিত, গিটহাব রানটি ফেইল্ড হয়েছে (${conclusion})! দয়া করে আপনার ইনপুট ডেটা চেক করুন।`;
+                                }
+                                document.getElementById('runBtn').disabled = false;
+                                document.getElementById('runBtn').innerText = "🚀 স্ক্র্যাপার রান করুন";
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.log("Status check checking failed:", err);
+                }
+            }, 20000); // প্রতি ২০ সেকেন্ড পর পর গিটহাব ব্যাকএন্ড আপডেট চেক করবে
         }
     </script>
 </body>
