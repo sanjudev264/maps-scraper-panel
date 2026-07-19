@@ -3,263 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Maps Lead Scraper Panel</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <title>Google Maps Scraper Panel</title>
     <style>
-        body { background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], input[type="password"], textarea, input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .flex-group { display: flex; gap: 10px; }
+        .flex-group input { width: 50%; }
+        button { background-color: #5c4cee; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #4a3bdb; }
+        .status { margin-top: 15px; padding: 15px; border-radius: 4px; display: none; text-align: center; font-weight: bold; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
-<body class="p-6">
-    <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-        <h2 class="text-3xl font-bold text-center text-indigo-600 mb-8">📍 Google Maps Lead Scraper Panel</h2>
-        
-        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-6">
-            <label class="block font-semibold text-yellow-800 mb-2">🔑 GitHub Personal Access Token:</label>
-            <input type="password" id="token" class="w-full p-2 border border-yellow-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="ghp_...">
-            
-            <label class="block font-semibold text-yellow-800 mt-4 mb-2">📦 Repository (username/repo-name):</label>
-            <input type="text" id="repo" class="w-full p-2 border border-yellow-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="sanjudev246/maps-scraper-panel">
-        </div>
+<body>
 
-        <div class="space-y-6">
-            <div>
-                <label class="block font-bold text-gray-700 mb-2">১. গুগল ম্যাপস লিংক দিন (একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="mapLinks" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 mb-2" placeholder="https://www.google.com/maps/search/..."></textarea>
-                <div class="text-center my-2 text-sm text-gray-400 font-bold">--- অথবা ফাইল আপলোড করুন ---</div>
-                <input type="file" id="inputFile" accept=".csv" class="w-full p-2 border border-gray-300 rounded bg-gray-50">
-            </div>
-
-            <div>
-                <label class="block font-bold text-gray-700 mb-2">২. কোন ক্যাটাগরিগুলো রাখবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="categories" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="Air duct&#10;Asbestos"></textarea>
-            </div>
-
-            <div>
-                <label class="block font-bold text-gray-700 mb-2">৩. কোন ডোমেইনগুলো বাদ দেবেন (কমা দিয়ে অথবা একটার নিচে একটা পেস্ট করুন):</label>
-                <textarea id="domains" rows="4" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500" placeholder="servpro.com"></textarea>
-            </div>
-
-            <button onclick="startScraper()" id="runBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                🚀 স্ক্র্যাপার রান করুন
-            </button>
-        </div>
-
-        <!-- 📊 লাইভ স্ট্যাটাস ও প্রোগ্রেস বক্স -->
-        <div id="statusBox" class="mt-6 p-4 rounded-lg hidden text-center font-semibold"></div>
+<div class="container">
+    <h2>🚀 গুগল ম্যাপস লিড স্ক্র্যাপার প্যানেল</h2>
+    
+    <div class="form-group">
+        <label>GitHub Personal Access Token:</label>
+        <input type="password" id="github_token" placeholder="ghp_xxxxxxxxxxxx">
     </div>
 
-    <script>
-        document.getElementById('token').value = localStorage.getItem('git_token') || '';
-        document.getElementById('repo').value = localStorage.getItem('git_repo') || '';
+    <div class="form-group">
+        <label>Repository (username/repo-name):</label>
+        <input type="text" id="repo_name" placeholder="sanjudev264/maps-scraper-panel">
+    </div>
 
-        const cleanInput = (text) => {
-            if (!text) return "";
-            return text.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0).join(',');
-        };
+    <div class="form-group">
+        <label>১. গুগল ম্যাপস লিঙ্ক দিন (একটার নিচে একটা পেস্ট করুন):</label>
+        <textarea id="search_links" rows="4" placeholder="https://www.google.com/maps/search/..."></textarea>
+    </div>
 
-        async function startScraper() {
-            const token = document.getElementById('token').value.trim();
-            const repo = document.getElementById('repo').value.trim();
-            const mapLinksRaw = document.getElementById('mapLinks').value.trim();
-            const fileInput = document.getElementById('inputFile').files[0];
-            const categoriesRaw = document.getElementById('categories').value.trim();
-            const domainsRaw = document.getElementById('domains').value.trim();
-            const statusBox = document.getElementById('statusBox');
-            const runBtn = document.getElementById('runBtn');
+    <div class="form-group">
+        <label>২. কোন ক্যাটাগরিগুলো রাখবেন (একটার নিচে একটা পেস্ট করুন):</label>
+        <textarea id="include_categories" rows="3" placeholder="beauty salons&#10;salons&#10;Hair Salon"></textarea>
+    </div>
 
-            if (!token || !repo) {
-                alert("দয়া করে গিটহাব টোকেন এবং রিপোজিটরি নাম দিন!");
-                return;
-            }
-            if (!mapLinksRaw && !fileInput) {
-                alert("দয়া করে ম্যাপ লিংক দিন অথবা ফাইল আপলোড করুন!");
-                return;
-            }
+    <div class="form-group">
+        <label>৩. কোন ডোমেইনগুলো বাদ দেবেন (একটার নিচে একটা পেস্ট করুন):</label>
+        <textarea id="exclude_domains" rows="3" placeholder="youtube.com&#10;linkedin.com"></textarea>
+    </div>
 
-            localStorage.setItem('git_token', token);
-            localStorage.setItem('git_repo', repo);
+    <!-- 🎯 নতুন রেটিং ফিল্টার সেকশন -->
+    <div class="form-group">
+        <label>৪. রেটিং ফিল্টার (Minimum & Maximum Rating):</label>
+        <div class="flex-group">
+            <input type="number" id="min_rating" placeholder="Min Rating (e.g. 3.5)" step="0.1" min="0" max="5">
+            <input type="number" id="max_rating" placeholder="Max Rating (e.g. 5.0)" step="0.1" min="0" max="5">
+        </div>
+    </div>
 
-            const categories = cleanInput(categoriesRaw);
-            const domains = cleanInput(domainsRaw);
+    <button onclick="runScraper()">🚀 স্ক্র্যাপার রান করুন</button>
 
-            runBtn.disabled = true;
-            runBtn.innerText = "⏳ ফাইল প্রসেস হচ্ছে...";
-            statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-blue-50 text-blue-700 block";
-            statusBox.innerText = "গিটহাবে ডাটা পাঠানো হচ্ছে...";
+    <div id="status_box" class="status"></div>
+</div>
 
-            let csvContent = "";
-            if (mapLinksRaw) {
-                const linksArray = mapLinksRaw.split('\n').map(l => l.trim()).filter(Boolean);
-                csvContent = "search_links\n" + linksArray.map(link => `"${link}"`).join("\n");
-                await uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn);
-            } else if (fileInput) {
-                const reader = new FileReader();
-                reader.readAsText(fileInput);
-                reader.onload = async function (e) {
-                    csvContent = e.target.result;
-                    await uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn);
-                };
-            }
-        }
+<script>
+async function runScraper() {
+    const token = document.getElementById('github_token').value.trim();
+    const repo = document.getElementById('repo_name').value.trim();
+    const links = document.getElementById('search_links').value.trim();
+    const categories = document.getElementById('include_categories').value.trim();
+    const domains = document.getElementById('exclude_domains').value.trim();
+    
+    // রেটিং ইনপুট রিড করা (ফাঁকা থাকলে ডিফল্ট ০ থেকে ৫ সেট হবে)
+    const minRating = document.getElementById('min_rating').value.trim() || "0";
+    const maxRating = document.getElementById('max_rating').value.trim() || "5";
 
-        async function uploadAndTrigger(csvContent, token, repo, categories, domains, statusBox, runBtn) {
-            const base64Content = btoa(unescape(encodeURIComponent(csvContent)));
-            try {
-                let sha = "";
-                try {
-                    const fileCheck = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
-                        headers: { "Authorization": `token ${token}` }
-                    });
-                    if (fileCheck.ok) {
-                        const fileData = await fileCheck.json();
-                        sha = fileData.sha;
-                    }
-                } catch (err) {}
+    const statusBox = document.getElementById('status_box');
 
-                const uploadFile = await fetch(`https://api.github.com/repos/${repo}/contents/input.csv`, {
-                    method: "PUT",
-                    headers: { "Authorization": `token ${token}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: "Update input.csv via Panel", content: base64Content, sha: sha ? sha : undefined })
-                });
+    if (!token || !repo || !links) {
+        showStatus("❌ টোকেন, রেপোজিটরি এবং ম্যাপস লিঙ্ক দেওয়া বাধ্যতামূলক!", "error");
+        return;
+    }
 
-                if (!uploadFile.ok) throw new Error("input.csv ফাইল আপলোড ফেইল্ড!");
+    showStatus("⏳ গিটহাব ওয়ার্কফ্লো ট্রিগার হচ্ছে... দয়া করে অপেক্ষা করুন।", "success");
 
-                statusBox.innerText = "🚀 স্ক্র্যাপার ক্লাউডে চালু হচ্ছে...";
-
-                const triggerWorkflow = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `token ${token}`,
-                        "Accept": "application/vnd.github.v3+json",
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ ref: "main", inputs: { include_categories: categories, exclude_domains: domains } })
-                });
-
-                if (triggerWorkflow.status === 204) {
-                    // সফলভাবে ওয়ার্কফ্লো রান ট্রিগার হলে ১ সেকেন্ড অপেক্ষা করে ট্র্যাকিং মেকানিজম চালু হবে
-                    setTimeout(() => {
-                        trackLiveStatus(token, repo, statusBox);
-                    }, 1000);
-                } else {
-                    throw new Error("Workflow রান করা যায়নি।");
+    // প্রথমে input.csv ফাইল আপডেট করার জন্য কন্টেন্ট তৈরি (প্রয়োজন হলে)
+    // এখানে সরাসরি workflow_dispatch ট্রিগার করার কোড দেওয়া হলো
+    try {
+        const url = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ref: 'main', // অথবা আপনার ব্রাঞ্চের নাম
+                inputs: {
+                    include_categories: categories,
+                    exclude_domains: domains,
+                    min_rating: minRating,
+                    max_rating: maxRating
                 }
-            } catch (error) {
-                statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-50 text-red-700 block";
-                statusBox.innerText = "❌ এরর: " + error.message;
-                runBtn.disabled = false;
-                runBtn.innerText = "🚀 স্ক্র্যাপার রান করুন";
-            }
+            })
+        });
+
+        if (response.status === 204) {
+            showStatus("🎉 অভিনন্দন! স্ক্র্যাপিং সফলভাবে শুরু হয়েছে। গিটহাব অ্যাকশনে চেক করুন।", "success");
+        } else {
+            const errData = await response.json();
+            showStatus(`❌ ব্যর্থ হয়েছে: ${errData.message}`, "error");
         }
+    } catch (err) {
+        showStatus(`❌ এরর: ${err.message}`, "error");
+    }
+}
 
-        // 🔄 গিটহাব ব্যাকএন্ড থেকে নিখুঁত লাইভ প্রোগ্রেস এবং পার্সেন্টেজ রিড করার ফাংশন
-        function trackLiveStatus(token, repo, statusBox) {
-            statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-yellow-50 text-yellow-800 block border border-yellow-200 shadow-sm";
-            statusBox.innerHTML = `
-                <div class="flex flex-col items-center justify-center space-y-2">
-                    <span class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></span>
-                    <span id="progress-header" class="text-md font-bold">⏳ সার্ভার অ্যাক্টিভেট হচ্ছে...</span>
-                    <span class="text-xs text-gray-500" id="timer-text">অনুগ্রহ করে অপেক্ষা করুন, ক্লাউড ইনস্ট্যান্স প্রিপেয়ার হচ্ছে...</span>
-                    <div id="live-log-container" class="mt-2 hidden"></div>
-                </div>
-            `;
-
-            const interval = setInterval(async () => {
-                try {
-                    const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs?per_page=1`, {
-                        headers: { "Authorization": `token ${token}`, "Accept": "application/vnd.github.v3+json" }
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.workflow_runs && data.workflow_runs.length > 0) {
-                            const latestRun = data.workflow_runs[0];
-                            const status = latestRun.status;         // queued, in_progress, completed
-                            const conclusion = latestRun.conclusion; // success, failure
-                            const liveUrl = latestRun.html_url;     // গিটহাব লাইভ অ্যাকশন পেজ লিংক
-
-                            if (status === "queued") {
-                                document.getElementById('progress-header').innerText = `⏳ গিটহাব রান কিউতে (Queued) আছে...`;
-                                document.getElementById('timer-text').innerText = `সার্ভার ফ্রি হওয়া মাত্রই স্ক্র্যাপিং স্টার্ট হবে।`;
-                            } 
-                            else if (status === "in_progress") {
-                                document.getElementById('progress-header').innerText = `⚙️ স্ক্র্যাপার বর্তমানে লাইভ কাজ করছে!`;
-                                
-                                // গিটহাব এপিআই থেকে ইন্টারনাল জব এবং কমপ্লিটেড স্টেপস এনালাইসিস করে রিয়েল-টাইম আপডেট জেনারেট করা
-                                const jobsResp = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${latestRun.id}/jobs`, {
-                                    headers: { "Authorization": `token ${token}` }
-                                });
-                                
-                                if (jobsResp.ok) {
-                                    const jobsData = await jobsResp.json();
-                                    if (jobsData.jobs && jobsData.jobs.length > 0) {
-                                        const job = jobsData.jobs[0];
-                                        // রানিং স্টেপস ট্র্যাক করা (যেমন: Checkout, Setup Node, Run Scraper ইত্যাদি)
-                                        const currentStep = job.steps.find(s => s.status === "in_progress");
-                                        const completedStepsCount = job.steps.filter(s => s.status === "completed").length;
-                                        const totalSteps = job.steps.length;
-                                        
-                                        // স্টেপ ভিত্তিক আনুমানিক পার্সেন্টেজ হিসাব
-                                        const percent = Math.round((completedStepsCount / totalSteps) * 100);
-
-                                        if (currentStep) {
-                                            document.getElementById('timer-text').innerHTML = `
-                                                <div class="w-full bg-gray-200 rounded-full h-2.5 my-2">
-                                                    <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: ${percent}%"></div>
-                                                </div>
-                                                বর্তমান ধাপ: <span class="text-indigo-600 font-bold">${currentStep.name}</span> (${percent}%)
-                                            `;
-                                        }
-                                    }
-                                }
-
-                                // রিয়েল-টাইম সম্পূর্ণ ডিটেইলস কনসোল দেখার জন্য সরাসরি লাইভ বাটনটি পুশ করা
-                                const logContainer = document.getElementById('live-log-container');
-                                logContainer.className = "mt-3 block";
-                                logContainer.innerHTML = `
-                                    <a href="${liveUrl}" target="_blank" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-1.5 px-3 rounded border border-indigo-200 transition">
-                                        🔍 সরাসরি রিয়েল-টাইম লাইভ লগ স্ক্রিন দেখুন
-                                    </a>
-                                `;
-                            } 
-                            else if (status === "completed") {
-                                clearInterval(interval); // ট্র্যাকিং সাকসেসফুলি স্টপ করা হলো
-                                
-                                if (conclusion === "success") {
-                                    // সফল হলে Artifact আইডি ও ডাউনলোড জেনারেশন
-                                    const artifactResp = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${latestRun.id}/artifacts`, {
-                                        headers: { "Authorization": `token ${token}` }
-                                    });
-                                    const artifactData = await artifactResp.json();
-                                    
-                                    if (artifactData.artifacts && artifactData.artifacts.length > 0) {
-                                        const downloadUrl = `https://github.com/${repo}/actions/runs/${latestRun.id}/artifacts/${artifactData.artifacts[0].id}`;
-                                        
-                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block shadow-md border border-green-200";
-                                        statusBox.innerHTML = `
-                                            🎉 অভিনন্দন! স্ক্র্যাপিং ১০০% সফলভাবে সম্পূর্ণ হয়েছে!<br><br>
-                                            <a href="${downloadUrl}" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 shadow">
-                                                📥 এক ক্লিকে আউটপুট ফাইলটি ডাউনলোড করুন
-                                            </a>
-                                        `;
-                                    } else {
-                                        statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-green-100 text-green-800 block border border-green-200";
-                                        statusBox.innerHTML = `🎉 স্ক্র্যাপিং সফল হয়েছে! আর্টফ্যাক্ট ফাইলটি জেনারেট হতে ১ মিনিট সময় লাগতে পারে। <a href="https://github.com/${repo}/actions" target="_blank" class="underline text-indigo-600 font-bold">এখানে ক্লিক করে গিটহাব থেকে নামিয়ে নিন।</a>`;
-                                    }
-                                } else {
-                                    statusBox.className = "mt-6 p-4 rounded-lg text-center font-semibold bg-red-100 text-red-800 block border border-red-200";
-                                    statusBox.innerText = `❌ দুঃখিত, গিটহাব রানটি ফেইল্ড হয়েছে (${conclusion})! আপনার ইনপুট ডেটা বা টোকেন চেক করুন।`;
-                                }
-                                document.getElementById('runBtn').disabled = false;
-                                document.getElementById('runBtn').innerText = "🚀 স্ক্র্যাপার রান করুন";
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.log("Status check failed:", err);
-                }
-            }, 7000); // প্রতি ৭ সেকেন্ড পর পর ইনস্ট্যান্ট লাইভ স্ট্যাটাস ফেচ করবে
-        }
-    </script>
+function showStatus(msg, type) {
+    const statusBox = document.getElementById('status_box');
+    statusBox.style.display = 'block';
+    statusBox.className = `status ${type}`;
+    statusBox.innerText = msg;
+}
+</script>
 </body>
 </html>
