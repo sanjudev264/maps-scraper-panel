@@ -146,26 +146,22 @@ async function runUltimateScraper() {
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
             
-            // ২. রিভিউ কাউন্ট ফিক্স (.fontBodySmall ক্লাস টার্গেট)
+            // 🎯 ২. আলটিমেট ও নির্ভুল রিভিউ কাউন্ট লজিক (ভুল সংখ্যা এড়াতে)
+            // স্ক্রিনশটে থাকা রেটিং স্টারের ঠিক নিচের 'fontBodySmall' ক্লাসটিকে প্রধান টার্গেট করা হলো
             const specificReviewEl = document.querySelector('.fontBodySmall');
             if (specificReviewEl && (specificReviewEl.innerText.includes('reviews') || specificReviewEl.innerText.includes('রিভিউ'))) {
-              const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
-              if (matches) reviewCount = matches[0];
+                const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
+                if (matches) reviewCount = matches[0];
             }
 
-            // ব্যাকআপ হিসেবে পুরো প্যানেল স্ক্যান
+            // যদি প্রথম প্যানেলে না পায়, ম্যাপের প্রধান রিভিউ বাটনের ভেতর থেকে খোঁজা (এটি অন্য সব জায়গার ভুল টেক্সট এড়িয়ে চলবে)
             if (reviewCount === '0') {
-              const allElements = Array.from(document.querySelectorAll('button, span, div'));
-              for (let el of allElements) {
-                const text = (el.ariaLabel || el.innerText || '').toLowerCase();
-                if (text.includes('google reviews') || text.includes('reviews') || text.includes('রিভিউ')) {
-                  const matches = text.replace(/,/g, '').match(/\d+/);
-                  if (matches) {
-                    reviewCount = matches[0];
-                    break; 
-                  }
+                const reviewBtn = document.querySelector('button[jsaction*="pane.review.list"]') || document.querySelector('div.F7nice button');
+                if (reviewBtn) {
+                    const text = (reviewBtn.ariaLabel || reviewBtn.innerText || '').toLowerCase();
+                    const matches = text.replace(/,/g, '').match(/\d+/);
+                    if (matches) reviewCount = matches[0];
                 }
-              }
             }
 
             let website = '';
