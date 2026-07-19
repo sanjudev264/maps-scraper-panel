@@ -49,7 +49,6 @@
         <textarea id="exclude_domains" rows="3" placeholder="youtube.com&#10;linkedin.com"></textarea>
     </div>
 
-    <!-- 🎯 নতুন রেটিং ফিল্টার সেকশন -->
     <div class="form-group">
         <label>৪. রেটিং ফিল্টার (Minimum & Maximum Rating):</label>
         <div class="flex-group">
@@ -64,31 +63,68 @@
 </div>
 
 <script>
+// ফাইল কনটেন্টকে Base64 এ রূপান্তর করার হেল্পার ফাংশন
+function utf8_to_b64(str) {
+    return window.btoa(unescape(encodeURIComponent(str)));
+}
+
 async function runScraper() {
     const token = document.getElementById('github_token').value.trim();
     const repo = document.getElementById('repo_name').value.trim();
     const links = document.getElementById('search_links').value.trim();
     const categories = document.getElementById('include_categories').value.trim();
     const domains = document.getElementById('exclude_domains').value.trim();
-    
-    // রেটিং ইনপুট রিড করা (ফাঁকা থাকলে ডিফল্ট ০ থেকে ৫ সেট হবে)
     const minRating = document.getElementById('min_rating').value.trim() || "0";
     const maxRating = document.getElementById('max_rating').value.trim() || "5";
-
-    const statusBox = document.getElementById('status_box');
 
     if (!token || !repo || !links) {
         showStatus("❌ টোকেন, রেপোজিটরি এবং ম্যাপস লিঙ্ক দেওয়া বাধ্যতামূলক!", "error");
         return;
     }
 
-    showStatus("⏳ গিটহাব ওয়ার্কফ্লো ট্রিগার হচ্ছে... দয়া করে অপেক্ষা করুন।", "success");
+    showStatus("⏳ গিটহাবের input.csv ফাইল আপডেট করা হচ্ছে...", "success");
 
-    // প্রথমে input.csv ফাইল আপডেট করার জন্য কন্টেন্ট তৈরি (প্রয়োজন হলে)
-    // এখানে সরাসরি workflow_dispatch ট্রিগার করার কোড দেওয়া হলো
+    // CSV ফরম্যাটে ডেটা প্রস্তুত করা (প্যানেলের ইনপুট দিয়ে নতুন ফাইল তৈরি হবে)
+    const csvContent = `"Search URL"\n` + links.split('\n').map(line => `"${line.trim().replace(/"/g, '""')}"`).join('\n');
+
     try {
-        const url = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
-        const response = await fetch(url, {
+        // ১. গিটহাবে থাকা বর্তমান input.csv ফাইলের SHA কোড নেওয়া (ফাইল আপডেট করতে SHA দরকার হয়)
+        const fileUrl = `https://api.github.com/repos/${repo}/contents/input.csv`;
+        let sha = null;
+        
+        const getFileRes = await fetch(fileUrl, {
+            headers: { 'Authorization': `token ${token}` }
+        });
+        
+        if (getFileRes.status === 200) {
+            const fileData = await getFileRes.json();
+            sha = fileData.sha;
+        }
+
+        // ২. নতুন ম্যাপস লিঙ্ক দিয়ে input.csv ফাইলটি গিটহাবে রাইট/আপডেট করা
+        const updateFileRes = await fetch(fileUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: "🎯 Updated input.csv from Scraper Panel",
+                content: utf8_to_b64(csvContent),
+                sha: sha
+            })
+        });
+
+        if (!updateFileRes.ok) {
+            showStatus("❌ input.csv ফাইল আপডেট করতে ব্যর্থ হয়েছে!", "error");
+            return;
+        }
+
+        showStatus("⏳ ফাইল আপডেট সফল! এবার ওয়ার্কফ্লো অ্যাকশন ট্রিগার করা হচ্ছে...", "success");
+
+        // ৩. গিটহাব অ্যাকশন ওয়ার্কফ্লো রান করা
+        const workflowUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
+        const workflowRes = await fetch(workflowUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `token ${token}`,
@@ -96,7 +132,7 @@ async function runScraper() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                ref: 'main', // অথবা আপনার ব্রাঞ্চের নাম
+                ref: 'main',
                 inputs: {
                     include_categories: categories,
                     exclude_domains: domains,
@@ -106,11 +142,11 @@ async function runScraper() {
             })
         });
 
-        if (response.status === 204) {
-            showStatus("🎉 অভিনন্দন! স্ক্র্যাপিং সফলভাবে শুরু হয়েছে। গিটহাব অ্যাকশনে চেক করুন।", "success");
+        if (workflowRes.status === 204) {
+            showStatus("🎉 অভিনন্দন! input.csv আপডেট হয়েছে এবং স্ক্র্যাপিং সফলভাবে শুরু হয়েছে।", "success");
         } else {
-            const errData = await response.json();
-            showStatus(`❌ ব্যর্থ হয়েছে: ${errData.message}`, "error");
+            const errData = await workflowRes.json();
+            showStatus(`❌ ওয়ার্কফ্লো ট্রিগার ব্যর্থ: ${errData.message}`, "error");
         }
     } catch (err) {
         showStatus(`❌ এরর: ${err.message}`, "error");
