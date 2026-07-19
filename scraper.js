@@ -6,11 +6,9 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 🔄 ফ্রন্টএন্ড প্যানেল ও গিটহাব অ্যাকশনস (scrape.yml) এর ভেরিয়েবলের সাথে ম্যাচিং
 const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 
-// প্যানেল থেকে পাঠানো ডেটা অথবা ডিফল্ট লিস্ট নেওয়া
 const targetKeywords = rawInclude 
   ? rawInclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [
@@ -39,7 +37,6 @@ function isExcludedWebsite(url) {
       'cottonholdings.com', 'bmscat.com'
     ];
 
-    // 💡 আপনার নতুন রিকোয়েস্ট অনুযায়ী: প্যানেলে নতুন লিস্ট দিলে শুধু সেটাই কাজ করবে, ফাঁকা থাকলে ডিফল্ট লিস্ট কাজ করবে
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
 
     const isFranchise = excludedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
@@ -56,6 +53,41 @@ function isExcludedWebsite(url) {
   } catch (e) {
     return false;
   }
+}
+
+// অ্যাড্রেস টেক্সট থেকে Street, City, State, Country আলাদা করার ফাংশন
+function parseAddress(addressStr) {
+  let street = "", city = "", state = "", country = "United States"; 
+  if (!addressStr) return { street, city, state, country };
+
+  const parts = addressStr.split(',').map(p => p.trim());
+  
+  if (parts.length >= 3) {
+    // সাধারণত শেষ পার্ট Country অথবা State+Zip হয়
+    const lastPart = parts[parts.length - 1];
+    const secondLast = parts[parts.length - 2];
+    
+    // US Zip Code ফরম্যাট ম্যাচিং (e.g., NY 10001)
+    const stateZipRegex = /^([A-Z]{2})\s+\d{5}(-\d{4})?$/i;
+    
+    if (stateZipRegex.test(lastPart)) {
+      state = lastPart.split(' ')[0];
+      city = secondLast;
+      street = parts.slice(0, parts.length - 2).join(', ');
+    } else if (stateZipRegex.test(secondLast)) {
+      country = lastPart;
+      state = secondLast.split(' ')[0];
+      city = parts[parts.length - 3];
+      street = parts.slice(0, parts.length - 3).join(', ');
+    } else {
+      street = parts.slice(0, parts.length - 2).join(', ');
+      city = secondLast;
+      state = lastPart;
+    }
+  } else {
+    street = addressStr;
+  }
+  return { street, city, state, country };
 }
 
 async function runUltimateScraper() {
@@ -84,71 +116,47 @@ async function runUltimateScraper() {
     }
   }
 
-  console.log(`[INFO] Active Target Keywords: ${targetKeywords.join(', ')}`);
-  console.log(`[INFO] Total search links in input: ${searchLinks.length}`);
-  console.log(`[INFO] Already processed: ${completedLinks.length} links.`);
-  
-  const remainingLinks = searchLinks.filter(link => !completedLinks.includes(link));
-  console.log(`[INFO] Remaining to process: ${remainingLinks.length} links.\n`);
+  // 📋 ঠিক আপনার এক্সেল ফরম্যাট অনুযায়ী হেডার তৈরি
+  if (!fs.existsSync(outputFile)) {
+    const BOM = '\uFEFF';
+    fs.writeFileSync(outputFile, BOM + '"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
+  }
 
-  if (remainingLinks.length === 0) {
-    console.log("🎉 All links have already been processed!");
-    return;
+  const uniqueTracker = new Set();
+  if (fs.existsSync(outputFile)) {
+    const existingContent = fs.readFileSync(outputFile, 'utf-8');
+    const existingLines = existingContent.split(/\r?\n/);
+    for (let k = 1; k < existingLines.length; k++) {
+      const parts = existingLines[k].split('","');
+      if (parts.length > 3) {
+        const title = parts[2].replace(/"/g, '').toLowerCase().trim();
+        const phone = parts[4] ? parts[4].replace(/[^\d]/g, '') : '';
+        if (title) uniqueTracker.add(title);
+        if (phone) uniqueTracker.add(phone);
+      }
+    }
   }
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox', 
-      '--window-size=1280,850',
-      '--lang=en-US,en'
-    ]
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,850', '--lang=en-US,en']
   });
 
   const page = await browser.newPage();
-  await page.setExtraHTTPHeaders({
-    'Accept-Language': 'en-US,en;q=0.9'
-  });
+  await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
   await page.setViewport({ width: 1280, height: 850 });
 
-  const uniqueTracker = new Set();
-  
-  if (fs.existsSync(outputFile)) {
-    console.log("[INFO] Loading existing phone/name data into memory for instant duplicate checking...");
-    const existingContent = fs.readFileSync(outputFile, 'utf-8');
-    const existingLines = existingContent.split(/\r?\n/);
-    
-    for (let k = 1; k < existingLines.length; k++) {
-      const line = existingLines[k].trim();
-      if (!line) continue;
-      
-      const parts = line.split('","');
-      if (parts.length > 2) {
-        const phone = parts[2].replace(/'/g, '').trim(); 
-        const name = parts[0].replace(/"/g, '').toLowerCase().trim();
-        if (phone) uniqueTracker.add(phone);
-        if (name) uniqueTracker.add(name);
-      }
-    }
-    console.log(`    └─ Loaded ${uniqueTracker.size} unique keys successfully.\n`);
-  } else {
-    const BOM = '\uFEFF';
-    fs.writeFileSync(outputFile, BOM + 'Company Name,Website,Phone,Address,Google Maps Link\n', 'utf-8');
-  }
+  const remainingLinks = searchLinks.filter(link => !completedLinks.includes(link));
 
   for (let i = 0; i < remainingLinks.length; i++) {
     const searchUrl = remainingLinks[i];
-    const totalRemaining = remainingLinks.length;
-    console.log(`\n[${i + 1}/${totalRemaining}] Processing: ${searchUrl.substring(0, 60)}...`);
+    console.log(`\n[Processing] URL: ${searchUrl.substring(0, 50)}...`);
 
     try {
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await delay(4000); 
 
       const sidebarSelector = '.m6QErb[aria-label]';
-      
-      console.log(`    └─ Scrolling sidebar...`);
       for (let scrollCount = 0; scrollCount < 3; scrollCount++) {
         await page.evaluate((selector) => {
           const sidebar = document.querySelector(selector);
@@ -158,130 +166,108 @@ async function runUltimateScraper() {
       }
 
       const companyElements = await page.$$('a[href*="/maps/place/"]');
-      console.log(`    └─ Found ${companyElements.length} companies. Analyzing each...`);
 
       for (let j = 0; j < companyElements.length; j++) {
-        let companyDetails = null;
-        let attempts = 0;
-
         try {
           const element = companyElements[j];
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
-          
           await delay(3000); 
 
-          while (attempts < 3) {
-            try {
-              companyDetails = await page.evaluate(() => {
-                const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
-                const companyName = nameEl ? nameEl.innerText.trim() : '';
+          const details = await page.evaluate(() => {
+            const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
+            const title = nameEl ? nameEl.innerText.trim() : '';
 
-                let category = '';
-                const catBtn = document.querySelector('button[jsaction*="category"]');
-                if (catBtn) {
-                  category = catBtn.innerText.trim().toLowerCase();
-                } else {
-                  const buttons = Array.from(document.querySelectorAll('button'));
-                  const foundBtn = buttons.find(b => (b.getAttribute('jsaction') || '').includes('category'));
-                  if (foundBtn) category = foundBtn.innerText.trim().toLowerCase();
-                }
+            // রানিং ক্যাটাগরি এক্সট্র্যাকশন
+            let category = '';
+            const catBtn = document.querySelector('button[jsaction*="category"]');
+            if (catBtn) category = catBtn.innerText.trim();
 
-                let website = '';
-                const websiteEl = document.querySelector('a[data-item-id="authority"]');
-                if (websiteEl) website = websiteEl.href || '';
-
-                let phone = '';
-                const phoneEl = document.querySelector('button[data-item-id^="phone:tel:"]');
-                if (phoneEl) {
-                  phone = phoneEl.getAttribute('data-item-id').replace('phone:tel:', '').trim();
-                }
-
-                let address = '';
-                const addressEl = document.querySelector('button[data-item-id="address"]');
-                if (addressEl) address = addressEl.innerText.trim();
-
-                const currentUrl = window.location.href;
-
-                return { companyName, category, website, phone, address, currentUrl };
-              });
-              
-              break; 
-            } catch (frameErr) {
-              attempts++;
-              if (frameErr.message.includes('detached Frame')) {
-                await delay(1500); 
-              } else {
-                throw frameErr;
-              }
-            }
-          }
-
-          if (!companyDetails) continue;
-
-          const { companyName, category, website, phone, address, currentUrl } = companyDetails;
-
-          if (companyName) {
-            const lowerName = companyName.toLowerCase().trim();
-            if (uniqueTracker.has(lowerName) || (phone && uniqueTracker.has(phone))) {
-              console.log(`      [-] Skipped: ${companyName} (Duplicate)`);
-              continue;
-            }
-
-            let isTarget = false;
-            if (category) {
-              isTarget = targetKeywords.some(keyword => category.includes(keyword));
-            } 
-            if (!isTarget) {
-              isTarget = targetKeywords.some(keyword => lowerName.includes(keyword));
-            }
-
-            if (!isTarget) {
-              console.log(`      [-] Skipped: ${companyName} (No matching Category/Name found: "${category}")`);
-              continue;
-            }
-
-            if (website && isExcludedWebsite(website)) {
-              console.log(`      [-] Skipped: ${companyName} (Excluded Website/Subdomain: ${website})`);
-              continue;
-            }
-
-            if (phone) uniqueTracker.add(phone);
-            uniqueTracker.add(lowerName);
-
-            const safeName = companyName.replace(/"/g, '""');
-            const safeWebsite = website.replace(/"/g, '""');
-            const safePhone = phone ? `'${phone.replace(/"/g, '""')}` : '';
-            const cleanAddress = address.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, ' ').trim();
-            const safeAddress = cleanAddress.replace(/"/g, '""').replace(/\n/g, ' ');
-            const safeMapLink = currentUrl.replace(/"/g, '""');
-
-            const csvRow = `"${safeName}","${safeWebsite}","${safePhone}","${safeAddress}","${safeMapLink}"\n`;
-            fs.appendFileSync(outputFile, csvRow, 'utf-8');
+            // রেটিং এবং রিভিউ কাউন্ট এক্সট্র্যাকশন
+            let rating = '0';
+            let reviewCount = '0';
             
-            console.log(`      [+] Saved: ${companyName} | Phone: ${phone || 'N/A'}`);
+            const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]');
+            if (ratingEl) rating = ratingEl.innerText.trim();
+            
+            const reviewEl = document.querySelector('div.F7nice button.HH2X1e');
+            if (reviewEl) {
+              reviewCount = reviewEl.innerText.replace(/[()]/g, '').trim();
+            }
+
+            let website = '';
+            const websiteEl = document.querySelector('a[data-item-id="authority"]');
+            if (websiteEl) website = websiteEl.href || '';
+
+            let phone = '';
+            const phoneEl = document.querySelector('button[data-item-id^="phone:tel:"]');
+            if (phoneEl) {
+              phone = phoneEl.getAttribute('data-item-id').replace('phone:tel:', '').replace(/\s+/g, '').trim();
+            }
+
+            let address = '';
+            const addressEl = document.querySelector('button[data-item-id="address"]');
+            if (addressEl) address = addressEl.innerText.trim();
+
+            const googleMapUrl = window.location.href;
+
+            return { title, category, website, phone, address, googleMapUrl, rating, reviewCount };
+          });
+
+          if (!details || !details.title) continue;
+
+          const lowerTitle = details.title.toLowerCase().trim();
+          const cleanPhone = details.phone.replace(/[^\d]/g, '');
+
+          // ডুপ্লিকেট চেকার
+          if (uniqueTracker.has(lowerTitle) || (cleanPhone && uniqueTracker.has(cleanPhone))) {
+            continue;
           }
 
-        } catch (clickErr) {
+          // ⭐ ফিল্টারিং লজিক: রেটিং ৩ বা তার বেশি হতে হবে
+          const numericRating = parseFloat(details.rating) || 0;
+          if (numericRating < 3.0) {
+            console.log(`      [-] Skipped: ${details.title} (Rating is ${details.rating}, less than 3)`);
+            continue;
+          }
+
+          // ক্যাটাগরি ও কিওয়ার্ড ম্যাচিং ফিল্টার
+          let isTarget = false;
+          if (details.category) isTarget = targetKeywords.some(k => details.category.toLowerCase().includes(k));
+          if (!isTarget) isTarget = targetKeywords.some(k => lowerTitle.includes(k));
+
+          if (!isTarget) continue;
+          if (details.website && isExcludedWebsite(details.website)) continue;
+
+          // ইউনিক ট্র্যাকিং সেট করা
+          uniqueTracker.add(lowerTitle);
+          if (cleanPhone) uniqueTracker.add(cleanPhone);
+
+          // অ্যাড্রেস স্প্লিট করা
+          const { street, city, state, country } = parseAddress(details.address);
+
+          // এক্সেল সেফ ফরম্যাটিং ডাটা রাইট
+          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${details.googleMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
+          
+          fs.appendFileSync(outputFile, csvRow, 'utf-8');
+          console.log(`      [+] Saved: ${details.title} | Rating: ${details.rating} ⭐`);
+
+        } catch (err) {
           continue;
         }
       }
 
       completedLinks.push(searchUrl);
       fs.writeFileSync(progressFile, JSON.stringify(completedLinks, null, 2), 'utf-8');
-      console.log(`    ✔️ Marked as completed in progress tracker.`);
 
     } catch (err) {
-      console.error(`    ❌ Error: ${err.message}`);
+      console.error(`Error: ${err.message}`);
     }
   }
 
-  if (fs.existsSync(progressFile)) {
-    fs.unlinkSync(progressFile);
-  }
-
+  if (fs.existsSync(progressFile)) fs.unlinkSync(progressFile);
   await browser.close();
-  console.log(`\n🎉 Process Finished! Output saved strictly filtered in '${outputFile}'.`);
+  console.log(`\n🎉 সম্পূর্ণ প্রসেস শেষ! আপনার দেওয়া ফরম্যাটে ডাটা ফিল্টার করে সেভ করা হয়েছে।`);
 }
 
 runUltimateScraper();
