@@ -14,9 +14,28 @@
         .flex-group input { width: 50%; }
         button { background-color: #5c4cee; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
         button:hover { background-color: #4a3bdb; }
-        .status { margin-top: 15px; padding: 15px; border-radius: 4px; display: none; text-align: center; font-weight: bold; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
+        
+        /* স্ট্যাটাস ও নোটিফিকেশন স্টাইল */
+        .status { margin-top: 15px; padding: 15px; border-radius: 4px; display: none; text-align: center; font-weight: bold; font-size: 14px; line-height: 1.5; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+        
+        /* নোটিফিকেশন বেল এবং ডাউনলোড বক্স */
+        .download-box { margin-top: 15px; padding: 20px; background-color: #e8f4fd; border: 2px dashed #2196f3; border-radius: 8px; text-align: center; display: none; animation: popIn 0.3s ease-in-out; }
+        .bell-icon { font-size: 40px; display: inline-block; margin-bottom: 10px; position: relative; }
+        .ring { animation: ringBell 0.5s ease infinite alternate; }
+        .download-btn { display: inline-block; background-color: #2196f3; color: white; padding: 10px 25px; margin-top: 10px; font-weight: bold; text-decoration: none; border-radius: 4px; border-bottom: 3px solid #0b7dda; }
+        .download-btn:hover { background-color: #0b7dda; }
+
+        @keyframes ringBell {
+            0% { transform: rotate(-15deg); }
+            100% { transform: rotate(15deg); }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -52,20 +71,35 @@
     <div class="form-group">
         <label>৪. রেটিং ফিল্টার (Minimum & Maximum Rating):</label>
         <div class="flex-group">
-            <input type="number" id="min_rating" placeholder="Min Rating (e.g. 3.5)" step="0.1" min="0" max="5">
+            <input type="number" id="min_rating" placeholder="Min Rating (e.g. 3.0)" step="0.1" min="0" max="5">
             <input type="number" id="max_rating" placeholder="Max Rating (e.g. 5.0)" step="0.1" min="0" max="5">
         </div>
     </div>
 
-    <button onclick="runScraper()">🚀 স্ক্র্যাপার রান করুন</button>
+    <button id="run_btn" onclick="runScraper()">🚀 স্ক্র্যাপার রান করুন</button>
 
+    <!-- স্ট্যাটাস মেসেজ বক্স -->
     <div id="status_box" class="status"></div>
+
+    <!-- 🔔 নোটিফিকেশন বেল এবং ডাউনলোড লিংক বক্স -->
+    <div id="download_box" class="download-box">
+        <div id="bell_element" class="bell-icon">🔔</div>
+        <h3 id="download_title" style="margin: 5px 0; color: #0d3c61;">স্ক্র্যাপিং সফলভাবে শেষ হয়েছে!</h3>
+        <p id="download_msg" style="margin: 5px 0 15px 0; font-size: 14px; color: #333;">আপনার ফাইলটি ডাউনলোড করার জন্য নিচের বাটনে ক্লিক করুন।</p>
+        <a id="download_link" href="#" target="_blank" class="download-btn">📥 Download Output.csv</a>
+    </div>
 </div>
 
 <script>
-// ফাইল কনটেন্টকে Base64 এ রূপান্তর করার হেল্পার ফাংশন
 function utf8_to_b64(str) {
     return window.btoa(unescape(encodeURIComponent(str)));
+}
+
+function showStatus(msg, type) {
+    const statusBox = document.getElementById('status_box');
+    statusBox.style.display = 'block';
+    statusBox.className = `status ${type}`;
+    statusBox.innerText = msg;
 }
 
 async function runScraper() {
@@ -77,18 +111,26 @@ async function runScraper() {
     const minRating = document.getElementById('min_rating').value.trim() || "0";
     const maxRating = document.getElementById('max_rating').value.trim() || "5";
 
+    const runBtn = document.getElementById('run_btn');
+    const downloadBox = document.getElementById('download_box');
+    const bellElement = document.getElementById('bell_element');
+
     if (!token || !repo || !links) {
         showStatus("❌ টোকেন, রেপোজিটরি এবং ম্যাপস লিঙ্ক দেওয়া বাধ্যতামূলক!", "error");
         return;
     }
 
-    showStatus("⏳ গিটহাবের input.csv ফাইল আপডেট করা হচ্ছে...", "success");
+    // নতুন রান শুরু করার আগে আগের ডাউনলোড বক্স লুকিয়ে ফেলা
+    downloadBox.style.display = 'none';
+    bellElement.classList.remove('ring');
+    
+    runBtn.disabled = true;
+    runBtn.style.backgroundColor = '#cccccc';
+    showStatus("⏳ গিটহাবের input.csv ফাইল আপডেট করা হচ্ছে...", "info");
 
-    // CSV ফরম্যাটে ডেটা প্রস্তুত করা (প্যানেলের ইনপুট দিয়ে নতুন ফাইল তৈরি হবে)
     const csvContent = `"Search URL"\n` + links.split('\n').map(line => `"${line.trim().replace(/"/g, '""')}"`).join('\n');
 
     try {
-        // ১. গিটহাবে থাকা বর্তমান input.csv ফাইলের SHA কোড নেওয়া (ফাইল আপডেট করতে SHA দরকার হয়)
         const fileUrl = `https://api.github.com/repos/${repo}/contents/input.csv`;
         let sha = null;
         
@@ -101,15 +143,11 @@ async function runScraper() {
             sha = fileData.sha;
         }
 
-        // ২. নতুন ম্যাপস লিঙ্ক দিয়ে input.csv ফাইলটি গিটহাবে রাইট/আপডেট করা
         const updateFileRes = await fetch(fileUrl, {
             method: 'PUT',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: "🎯 Updated input.csv from Scraper Panel",
+                message: "🎯 Updated input.csv via Web Panel",
                 content: utf8_to_b64(csvContent),
                 sha: sha
             })
@@ -117,12 +155,16 @@ async function runScraper() {
 
         if (!updateFileRes.ok) {
             showStatus("❌ input.csv ফাইল আপডেট করতে ব্যর্থ হয়েছে!", "error");
+            runBtn.disabled = false;
+            runBtn.style.backgroundColor = '#5c4cee';
             return;
         }
 
-        showStatus("⏳ ফাইল আপডেট সফল! এবার ওয়ার্কফ্লো অ্যাকশন ট্রিগার করা হচ্ছে...", "success");
+        showStatus("⏳ ফাইল আপডেট সফল! এবার স্ক্র্যাপার রান ট্রিগার করা হচ্ছে...", "info");
 
-        // ৩. গিটহাব অ্যাকশন ওয়ার্কফ্লো রান করা
+        // ওয়ার্কফ্লো ট্রিগার করার সময় টাইমস্ট্যাম্প রাখা যেন সঠিক রানটি ট্র্যাক করা যায়
+        const triggerTime = new Date();
+
         const workflowUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
         const workflowRes = await fetch(workflowUrl, {
             method: 'POST',
@@ -143,21 +185,88 @@ async function runScraper() {
         });
 
         if (workflowRes.status === 204) {
-            showStatus("🎉 অভিনন্দন! input.csv আপডেট হয়েছে এবং স্ক্র্যাপিং সফলভাবে শুরু হয়েছে।", "success");
+            showStatus("🚀 স্ক্র্যাপার সফলভাবে চালু হয়েছে! ব্যাকগ্রাউন্ডে কাজ চলছে, পেজটি বন্ধ করবেন না...", "success");
+            
+            // ৫ সেকেন্ড অপেক্ষা করে লাইভ মনিটরিং শুরু করা
+            setTimeout(() => {
+                checkWorkflowStatus(token, repo, triggerTime, runBtn);
+            }, 5000);
+
         } else {
             const errData = await workflowRes.json();
-            showStatus(`❌ ওয়ার্কফ্লো ট্রিগার ব্যর্থ: ${errData.message}`, "error");
+            showStatus(`❌ ট্রিগার ব্যর্থ: ${errData.message}`, "error");
+            runBtn.disabled = false;
+            runBtn.style.backgroundColor = '#5c4cee';
         }
     } catch (err) {
         showStatus(`❌ এরর: ${err.message}`, "error");
+        runBtn.disabled = false;
+        runBtn.style.backgroundColor = '#5c4cee';
     }
 }
 
-function showStatus(msg, type) {
-    const statusBox = document.getElementById('status_box');
-    statusBox.style.display = 'block';
-    statusBox.className = `status ${type}`;
-    statusBox.innerText = msg;
+// গিটহাব অ্যাকশনের স্ট্যাটাস রিয়েল-টাইম চেক করার ফাংশন
+async function checkWorkflowStatus(token, repo, triggerTime, runBtn) {
+    const runsUrl = `https://api.github.com/repos/${repo}/actions/runs?event=workflow_dispatch&limit=3`;
+    
+    const interval = setInterval(async () => {
+        try {
+            const res = await fetch(runsUrl, {
+                headers: { 'Authorization': `token ${token}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            // আমাদের ট্রিগার করা লেটেস্ট রানটি খুঁজে বের করা
+            const currentRun = data.workflow_runs[0];
+            
+            if (currentRun) {
+                const status = currentRun.status;         // queued, in_progress, completed
+                const conclusion = currentRun.conclusion; // success, failure, cancelled
+
+                if (status === 'queued' || status === 'in_progress') {
+                    showStatus(`⏳ স্ক্র্যাপার এখনো ডেটা কালেক্ট করছে... (বর্তমান অবস্থা: ${status === 'in_progress' ? 'চলমান' : 'অপেক্ষা করছে'})`, "success");
+                } 
+                else if (status === 'completed') {
+                    clearInterval(interval);
+                    runBtn.disabled = false;
+                    runBtn.style.backgroundColor = '#5c4cee';
+
+                    if (conclusion === 'success') {
+                        showStatus("🎉 স্ক্র্যাপিং সম্পন্ন হয়েছে!", "success");
+                        // সরাসরি ওই স্পেসিফিক রান থেকে আর্টিফ্যাক্ট বা ফাইল ডাউনলোড করার লিঙ্ক জেনারেট
+                        // গিটহাব জিপ ফরম্যাটে ডাউনলোড দেয়, তাই রিপোজিটরির মূল আউটপুট ফাইলের লিঙ্ক দেওয়া সবচেয়ে নিরাপদ:
+                        const directDownloadUrl = `https://raw.githubusercontent.com/${repo}/main/output.csv?t=${new Date().getTime()}`;
+                        
+                        // বেল অ্যানিমেশন চালু এবং লিঙ্ক প্রদর্শন
+                        const downloadBox = document.getElementById('download_box');
+                        const downloadLink = document.getElementById('download_link');
+                        const bellElement = document.getElementById('bell_element');
+                        
+                        downloadLink.href = directDownloadUrl;
+                        downloadBox.style.display = 'block';
+                        bellElement.classList.add('ring');
+                        
+                        // একটি নোটিফিকেশন সাউন্ড প্লে করা (ঐচ্ছিক)
+                        try {
+                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            const oscillator = audioCtx.createOscillator();
+                            oscillator.type = 'sine';
+                            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                            oscillator.connect(audioCtx.destination);
+                            oscillator.start();
+                            oscillator.stop(audioCtx.currentTime + 0.3);
+                        } catch(e){}
+
+                    } else {
+                        showStatus(`❌ স্ক্র্যাপার রানটি গিটহাবে ব্যর্থ (Failed) হয়েছে। কনক্লুশন: ${conclusion}`, "error");
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("স্ট্যাটাস চেক করতে সমস্যা হচ্ছে:", err);
+        }
+    }, 10000); // প্রতি ১০ সেকেন্ড পরপর গিটহাবের স্ট্যাটাস অটো চেক হবে
 }
 </script>
 </body>
