@@ -31,38 +31,31 @@ function isExcludedWebsite(url) {
   } catch (e) { return false; }
 }
 
-function parseAddress(addressStr) {
-  let street = "", city = "", state = "", country = "United States"; 
-  if (!addressStr) return { street, city, state, country };
+function parseUniversalAddress(addressStr) {
+  let fullAddress = "";
+  let city = "";
+  let country = "";
+
+  if (!addressStr) return { fullAddress, city, country };
+
+  fullAddress = addressStr.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   
-  let cleanAddr = addressStr.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
-  cleanAddr = cleanAddr.replace(/,?\s*United States$/i, '').trim();
+  const parts = fullAddress.split(',').map(p => p.trim()).filter(Boolean);
   
-  const stateZipRegex = /\b([A-Z]{2})\s*(\d{5}(-\d{4})?)?\s*$/i;
-  const match = cleanAddr.match(stateZipRegex);
-  if (match) {
-    state = match[1].toUpperCase();
-    let remaining = cleanAddr.substring(0, match.index).trim().replace(/,$/, '').trim();
-    const parts = remaining.split(',').map(p => p.trim());
+  if (parts.length > 0) {
+    country = parts[parts.length - 1];
     if (parts.length > 1) {
-      city = parts[parts.length - 1];
-      street = parts.slice(0, parts.length - 1).join(', ');
-    } else if (parts.length === 1 && parts[0] !== "") {
-      const words = parts[0].split(/\s+/);
-      if (words.length > 1) {
-        city = words[words.length - 1];
-        street = words.slice(0, words.length - 1).join(' ').trim();
-      } else { city = words[0]; }
+      let potentialCity = parts[parts.length - 2];
+      city = potentialCity.replace(/\b[A-Z]{2}\s*\d+(-\d+)?\b/i, '').trim();
+      if (!city && parts.length > 2) {
+        city = parts[parts.length - 3];
+      }
     }
-  } else {
-    const parts = cleanAddr.split(',').map(p => p.trim());
-    if (parts.length >= 2) {
-      state = parts[parts.length - 1];
-      city = parts[parts.length - 2];
-      street = parts.slice(0, parts.length - 2).join(', ');
-    } else { street = cleanAddr; }
   }
-  return { street, city, state, country };
+
+  if (!city && parts.length > 0) city = parts[0];
+
+  return { fullAddress, city, country };
 }
 
 async function runUltimateScraper() {
@@ -78,13 +71,19 @@ async function runUltimateScraper() {
   const lines = fileContent.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const searchLinks = lines.slice(1);
 
-  fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
+  fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Full Address","City","Country","Category"\n', 'utf-8');
 
   const scrapedMapUrls = new Set();
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1280,850', '--lang=en-US,en']
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox', 
+      '--disable-dev-shm-usage', 
+      '--window-size=1280,850', 
+      '--lang=en-US,en'
+    ]
   });
 
   const page = await browser.newPage();
@@ -95,15 +94,15 @@ async function runUltimateScraper() {
     console.log(`\n[Processing] URL: ${searchUrl}`);
     try {
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      await delay(5000); 
+      await delay(6000); 
 
       const sidebarSelector = '.m6QErb[aria-label]';
       await page.evaluate(async (selector) => {
-        const sidebar = document.querySelector(selector);
+        const sidebar = document.querySelector(selector) || document.querySelector('.m6QErb');
         if (sidebar) {
-          for (let s = 0; s < 6; s++) {
-            sidebar.scrollBy(0, 2500);
-            await new Promise(r => setTimeout(r, 1200));
+          for (let s = 0; s < 15; s++) {
+            sidebar.scrollBy(0, 3000);
+            await new Promise(r => setTimeout(r, 1000));
           }
         }
       }, sidebarSelector);
@@ -111,31 +110,33 @@ async function runUltimateScraper() {
       const companyElements = await page.$$('a[href*="/maps/place/"]');
       console.log(`Found ${companyElements.length} shops to check.`);
 
+      if (companyElements.length === 0) {
+        console.log("⚠️ No shops found on this page.");
+        continue;
+      }
+
       for (let j = 0; j < companyElements.length; j++) {
         try {
           const element = companyElements[j];
           
           const currentMapUrl = await page.evaluate(el => el.href ? el.href.toString() : '', element);
-          if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) {
-            continue; 
-          }
+          if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) continue; 
 
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
-          await delay(4000); 
+          await delay(4500); 
 
           const details = await page.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
             const title = nameEl ? nameEl.innerText.toString().trim() : '';
 
             let category = '';
-            const catBtn = document.querySelector('button[jsaction*="category"]');
+            const catBtn = document.querySelector('button[jsaction*="category"]') || document.querySelector('.fontBodyMedium .Rznmbe');
             if (catBtn) category = catBtn.innerText.toString().trim();
 
             let rating = '0';
             let reviewCount = '0';
             
-            // ১. রেটিং ডিটেকশন
             const ratingTextEl = document.querySelector('span.ceNzKf[aria-label]');
             if (ratingTextEl) {
               const attr = ratingTextEl.getAttribute('aria-label');
@@ -146,16 +147,13 @@ async function runUltimateScraper() {
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
             
-            // 🎯 ২. আলটিমেট ও নির্ভুল রিভিউ কাউন্ট লজিক (ভুল সংখ্যা এড়াতে)
-            // স্ক্রিনশটে থাকা রেটিং স্টারের ঠিক নিচের 'fontBodySmall' ক্লাসটিকে প্রধান টার্গেট করা হলো
             const specificReviewEl = document.querySelector('.fontBodySmall');
-            if (specificReviewEl && (specificReviewEl.innerText.includes('reviews') || specificReviewEl.innerText.includes('রিভিউ'))) {
+            if (specificReviewEl && (specificReviewEl.innerText.toLowerCase().includes('reviews') || specificReviewEl.innerText.includes('রিভিউ') || specificReviewEl.innerText.toLowerCase().includes('opinion'))) {
                 const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
                 if (matches) reviewCount = matches[0];
             }
 
-            // যদি প্রথম প্যানেলে না পায়, ম্যাপের প্রধান রিভিউ বাটনের ভেতর থেকে খোঁজা (এটি অন্য সব জায়গার ভুল টেক্সট এড়িয়ে চলবে)
-            if (reviewCount === '0') {
+            if (reviewCount === '0' || reviewCount === '') {
                 const reviewBtn = document.querySelector('button[jsaction*="pane.review.list"]') || document.querySelector('div.F7nice button');
                 if (reviewBtn) {
                     const text = (reviewBtn.ariaLabel || reviewBtn.innerText || '').toLowerCase();
@@ -183,27 +181,36 @@ async function runUltimateScraper() {
 
           if (!details || !details.title) continue;
 
+          // 🚨 [ইস্যু ফিক্স] অ্যাড্রেস যদি ফাঁকা থাকে, তবে ওটাকে লিস্টে নেওয়া হবে না
+          if (!details.address || details.address.trim() === '') {
+            console.log(`[-] Skipped: ${details.title} (No address / Empty address box)`);
+            continue;
+          }
+
           const numericRating = parseFloat(details.rating) || 0;
           if (numericRating < minRatingInput || numericRating > maxRatingInput) {
-            console.log(`[-] Skipped (Rating ${numericRating} is out of specified range)`);
+            console.log(`[-] Skipped: ${details.title} (Rating ${numericRating} out of range)`);
             continue; 
           }
 
           if (targetKeywords.length > 0) {
-            const currentCat = details.category.toLowerCase();
-            const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword));
-            if (!isMatched) continue;
+            const currentCat = details.category.toLowerCase().trim();
+            const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword.trim().toLowerCase()));
+            if (!isMatched) {
+              console.log(`[-] Skipped: ${details.title} (Category '${details.category}' not matched)`);
+              continue;
+            }
           }
 
           if (details.website && isExcludedWebsite(details.website)) continue;
 
-          const { street, city, state, country } = parseAddress(details.address);
+          const { fullAddress, city, country } = parseUniversalAddress(details.address);
 
-          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
+          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${fullAddress.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
           scrapedMapUrls.add(currentMapUrl); 
-          console.log(`[+] Saved: ${details.title} (Rating: ${numericRating}, Reviews: ${details.reviewCount})`);
+          console.log(`[+] Saved: ${details.title} (Country: ${country}, Reviews: ${details.reviewCount})`);
 
         } catch (err) { continue; }
       }
