@@ -6,13 +6,11 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// এনভায়রনমেন্ট ভ্যারিয়েবল থেকে প্যানেলের ইনপুট ডেটা রিড করা
 const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 const minRatingInput = parseFloat(process.env.MIN_RATING) || 0;
 const maxRatingInput = parseFloat(process.env.MAX_RATING) || 5;
 
-// নতুন লাইন (\n) দিয়ে টেক্সটকে অ্যারেতে কনভার্ট করা
 const targetKeywords = rawInclude 
   ? rawInclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : []; 
@@ -37,7 +35,6 @@ function parseAddress(addressStr) {
   let street = "", city = "", state = "", country = "United States"; 
   if (!addressStr) return { street, city, state, country };
   
-  // ঠিকানার ভেতরের যেকোনো হিডেন বা ব্রোকেন ক্যারেক্টার এবং স্পেস ক্লিন করা (সাদা বক্স ফিক্স)
   let cleanAddr = addressStr.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   cleanAddr = cleanAddr.replace(/,?\s*United States$/i, '').trim();
   
@@ -54,7 +51,7 @@ function parseAddress(addressStr) {
       const words = parts[0].split(/\s+/);
       if (words.length > 1) {
         city = words[words.length - 1];
-        street = words.slice(0, words.slice(0, words.length - 1).join(' ').length).trim();
+        street = words.slice(0, words.slice(0, words.slice(0, words.length - 1).join(' ').length).trim();
       } else { city = words[0]; }
     }
   } else {
@@ -81,10 +78,8 @@ async function runUltimateScraper() {
   const lines = fileContent.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const searchLinks = lines.slice(1);
 
-  // UTF-8 BOM সহ হেডার রাইট করা যাতে এক্সেল ফাইল সরাসরি ওপেন করলেও ফন্ট না ভাঙে
   fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
 
-  // ডুপ্লিকেট রোধ করার জন্য ইউনিক সেট ব্যবহার
   const scrapedMapUrls = new Set();
 
   const browser = await puppeteer.launch({
@@ -120,10 +115,9 @@ async function runUltimateScraper() {
         try {
           const element = companyElements[j];
           
-          // গিটহাব ম্যাপস ইউআরএল সরাসরি এলিমেন্ট থেকে আগেই রিড করে চেক করা (ডুপ্লিকেট আটকানোর প্রধান লজিক)
           const currentMapUrl = await page.evaluate(el => el.href ? el.href.toString() : '', element);
           if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) {
-            continue; // ডুপ্লিকেট হলে স্কিপ করবে
+            continue; 
           }
 
           await page.evaluate(el => el.scrollIntoView(), element);
@@ -141,33 +135,36 @@ async function runUltimateScraper() {
             let rating = '0';
             let reviewCount = '0';
             
-            // ১. রেটিং ডিটেকশন ফিক্স
+            // ১. রেটিং ডিটেকশন
             const ratingTextEl = document.querySelector('span.ceNzKf[aria-label]');
             if (ratingTextEl) {
               const attr = ratingTextEl.getAttribute('aria-label');
               const match = attr ? attr.match(/([0-9.]+)\s*stars/) || attr.match(/([0-9.]+)\s*তারকা/) : null;
               if (match) rating = match[1];
             } else {
-              const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]');
+              const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]') || document.querySelector('.fontDisplayLarge');
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
             
-            // 🎯 ২. শক্তিশালী রিভিউ কাউন্ট ডিটেকশন ফিক্স (একাধিক ক্লাস চেক করা হচ্ছে)
-            const reviewSelectors = [
-              'div.F7nice button.HH2X1e', 
-              'div.F7nice span.Zkbbqd',
-              'button[jsaction*="pane.review.list"] span',
-              'div.F7nice span:nth-child(2) span aria-label'
-            ];
-            
-            for (let selector of reviewSelectors) {
-              const el = document.querySelector(selector);
-              if (el) {
-                let text = el.getAttribute('aria-label') || el.innerText || '';
-                const matches = text.toString().replace(/,/g, '').match(/\d+/);
-                if (matches) {
-                  reviewCount = matches[0];
-                  break;
+            // 🎯 ২. স্ক্রিনশট অনুযায়ী কাস্টমাইজড রিভিউ কাউন্ট ফিক্স
+            // প্রথমে সরাসরি আপনার স্ক্রিনশটের ক্লাস এবং টেক্সট প্যাটার্ন ম্যাচ করার চেষ্টা করবে
+            const specificReviewEl = document.querySelector('.fontBodySmall');
+            if (specificReviewEl && (specificReviewEl.innerText.includes('reviews') || specificReviewEl.innerText.includes('রিভিউ'))) {
+              const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
+              if (matches) reviewCount = matches[0];
+            }
+
+            // যদি উপরের সুনির্দিষ্ট ক্লাসে না পায়, তবে ব্যাকআপ হিসেবে পুরো প্যানেল স্ক্যান করবে
+            if (reviewCount === '0') {
+              const allElements = Array.from(document.querySelectorAll('button, span, div'));
+              for (let el of allElements) {
+                const text = (el.ariaLabel || el.innerText || '').toLowerCase();
+                if (text.includes('google reviews') || text.includes('reviews') || text.includes('রিভিউ')) {
+                  const matches = text.replace(/,/g, '').match(/\d+/);
+                  if (matches) {
+                    reviewCount = matches[0];
+                    break; 
+                  }
                 }
               }
             }
@@ -191,14 +188,12 @@ async function runUltimateScraper() {
 
           if (!details || !details.title) continue;
 
-          // ডায়নামিক রেটিং ফিল্টার চেক
           const numericRating = parseFloat(details.rating) || 0;
           if (numericRating < minRatingInput || numericRating > maxRatingInput) {
             console.log(`[-] Skipped (Rating ${numericRating} is out of specified range)`);
             continue; 
           }
 
-          // ডায়নামিক ক্যাটাগরি ফিল্টার চেক
           if (targetKeywords.length > 0) {
             const currentCat = details.category.toLowerCase();
             const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword));
@@ -207,13 +202,12 @@ async function runUltimateScraper() {
 
           if (details.website && isExcludedWebsite(details.website)) continue;
 
-          // ঠিকানার ক্যারেক্টার ফিক্স করে ফিল্ড আলাদা করা
           const { street, city, state, country } = parseAddress(details.address);
 
           const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          scrapedMapUrls.add(currentMapUrl); // সেটে অ্যাড করা হলো যাতে পরে আর ডুপ্লিকেট না হয়
+          scrapedMapUrls.add(currentMapUrl); 
           console.log(`[+] Saved: ${details.title} (Rating: ${numericRating}, Reviews: ${details.reviewCount})`);
 
         } catch (err) { continue; }
