@@ -106,12 +106,61 @@
 </div>
 
 <script>
+    // সাউন্ড বাজানোর জন্য ব্রাউজার সিন্থেসাইজার (Audio Context)
+    function playSuccessSound() {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // ১ম নোট (একটু নরম)
+            const osc1 = audioCtx.createOscillator();
+            const gain1 = audioCtx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5 নোট
+            gain1.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc1.connect(gain1);
+            gain1.connect(audioCtx.destination);
+            osc1.start();
+            osc1.stop(audioCtx.currentTime + 0.3);
+
+            // ২য় নোট (একটু চড়া - পারফেক্ট ফিনিশিং টিউন)
+            setTimeout(() => {
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5 নোট
+                gain2.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start();
+                osc2.stop(audioCtx.currentTime + 0.4);
+            }, 150);
+        } catch (e) {
+            console.error("অডিও প্লে করতে সমস্যা হয়েছে:", e);
+        }
+    }
+
     function showStatus(message, type) {
         const statusBox = document.getElementById('status_message');
         statusBox.className = `status-box ${type}`;
         statusBox.innerText = message;
         statusBox.style.display = 'block';
     }
+
+    // 🔄 পেজ লোড হওয়ার সাথে সাথে চেক করবে কোনো রানিং প্রসেস আগে থেকে স্টোর করা আছে কিনা
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedRepo = sessionStorage.getItem('active_repo');
+        const savedToken = sessionStorage.getItem('active_token');
+        const isTracking = sessionStorage.getItem('is_tracking');
+
+        if (isTracking === 'true' && savedRepo && savedToken) {
+            // যদি আগে থেকে প্রসেস রানিং থাকে, তবে ইনপুট লক করে ট্র্যাকিং রিজিউম করবে
+            document.getElementById('btn_run').disabled = true;
+            document.getElementById('btn_run').innerText = "⏳ প্রসেস রিজিউম হচ্ছে...";
+            trackLiveWorkflowStatus(savedToken, savedRepo);
+        }
+    });
 
     async function startScraperWorkflow() {
         const token = document.getElementById('github_token').value.trim();
@@ -190,24 +239,29 @@
                 throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে।");
             }
 
-            showStatus("🏃‍♂️ স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু হয়েছে! নিখুঁতভাবে স্ট্যাটাস ট্র্যাক করা হচ্ছে...", "info");
+            // 💾 রিলোড প্রোটেকশনের জন্য সেশন ডাটা সেভ করা হলো
+            sessionStorage.setItem('active_repo', repo);
+            sessionStorage.setItem('active_token', token);
+            sessionStorage.setItem('is_tracking', 'true');
+
+            showStatus("🏃‍♂️ স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু হয়েছে!", "info");
             
-            // 💡 ট্রিগার করার পর গিটহাব রান প্রিপেয়ার হতে ৫ সেকেন্ড সময় দেওয়া হলো
             setTimeout(() => {
-                trackWorkflowStatus(token, repo);
-            }, 5000);
+                trackLiveWorkflowStatus(token, repo);
+            }, 6000);
 
         } catch (err) {
             showStatus(`❌ এরর: ${err.message}`, "error");
             btn.disabled = false;
             btn.innerText = "🚀 স্ক্র্যাপার রান করুন";
+            sessionStorage.clear();
         }
     }
 
-    async function trackWorkflowStatus(token, repo) {
-        // 🎯 [🎯 পরিবর্তন] এখানে নির্দিষ্ট করে scrape.yml এর রানগুলো ফিল্টার করে আনা হচ্ছে
+    async function trackLiveWorkflowStatus(token, repo) {
         const runsUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/runs?per_page=1`;
-        let checkCount = 0;
+        let lastLoggedLine = ""; 
+        const btn = document.getElementById('btn_run');
 
         const interval = setInterval(async () => {
             try {
@@ -218,16 +272,66 @@
                 
                 if (data.workflow_runs && data.workflow_runs.length > 0) {
                     const currentRun = data.workflow_runs[0];
+                    const runId = currentRun.id;
                     const status = currentRun.status;
                     const conclusion = currentRun.conclusion;
 
-                    checkCount++;
-                    
-                    if (status === 'queued' || status === 'in_progress') {
-                        showStatus(`⏳ গুগল ম্যাপস স্ক্র্যাপার রানিং আছে... (চেক করা হয়েছে: ${checkCount * 5} সেকেন্ড)`, "info");
+                    if (status === 'queued') {
+                        showStatus("⏳ গিটহাব সার্ভার রেডি হচ্ছে... (Queued)", "info");
+                        btn.disabled = true;
+                        btn.innerText = "⏳ রানিং আছে...";
+                        return;
+                    }
+
+                    if (status === 'in_progress') {
+                        btn.disabled = true;
+                        btn.innerText = "⏳ রানিং আছে...";
+                        
+                        const jobsUrl = `https://api.github.com/repos/${repo}/actions/runs/${runId}/jobs`;
+                        const jobsRes = await fetch(jobsUrl, {
+                            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+                        });
+                        const jobsData = await jobsRes.json();
+
+                        if (jobsData.jobs && jobsData.jobs.length > 0) {
+                            const jobId = jobsData.jobs[0].id;
+                            const logsUrl = `https://api.github.com/repos/${repo}/actions/jobs/${jobId}/logs`;
+                            const logsRes = await fetch(logsUrl, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            
+                            if (logsRes.status === 200) {
+                                const logText = await logsRes.text();
+                                const logLines = logText.split('\n').map(l => l.trim()).filter(Boolean);
+                                
+                                const liveUpdates = logLines.filter(line => 
+                                    line.includes('[+]') || 
+                                    line.includes('[-]') || 
+                                    line.includes('[Processing]') || 
+                                    line.includes('Found')
+                                );
+
+                                if (liveUpdates.length > 0) {
+                                    const latestUpdate = liveUpdates[liveUpdates.length - 1];
+                                    const cleanMessage = latestUpdate.substring(latestUpdate.indexOf('Z ') + 2 || 0);
+                                    
+                                    if (cleanMessage !== lastLoggedLine) {
+                                        lastLoggedLine = cleanMessage;
+                                    }
+                                    showStatus(`⚡ লাইভ স্ট্যাটাস: ${lastLoggedLine}`, "info");
+                                } else {
+                                    showStatus("⏳ ব্রাউজার ওপেন হচ্ছে এবং ম্যাপস লোড হচ্ছে...", "info");
+                                }
+                            }
+                        }
                     } else if (status === 'completed' && conclusion === 'success') {
                         clearInterval(interval);
-                        showStatus("🎉 স্ক্র্যাপিং সফলভাবে সম্পন্ন হয়েছে!", "success");
+                        sessionStorage.clear(); // প্রসেস শেষ, তাই সেশন ক্লিন
+
+                        showStatus("🎉 স্ক্র্যাপিং সফলভাবে সম্পন্ন হয়েছে এবং ডাটা সেভ হয়েছে!", "success");
+                        
+                        // 🔔 অডিও নোটিফিকেশন বাজানো হলো
+                        playSuccessSound();
 
                         const downloadBox = document.getElementById('download_box');
                         const downloadLink = document.getElementById('download_link');
@@ -235,17 +339,18 @@
                         downloadLink.href = currentRun.html_url;
                         downloadBox.style.display = 'block';
                         
-                        document.getElementById('btn_run').disabled = false;
-                        document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
+                        btn.disabled = false;
+                        btn.innerText = "🚀 স্ক্র্যাপার রান করুন";
                     } else if (status === 'completed') {
                         clearInterval(interval);
-                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে! (কোডে এরর আছে বা বাতিল হয়েছে)`, "error");
-                        document.getElementById('btn_run').disabled = false;
-                        document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
+                        sessionStorage.clear();
+                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে বা বাতিল হয়েছে!`, "error");
+                        btn.disabled = false;
+                        btn.innerText = "🚀 স্ক্র্যাপার রান করুন";
                     }
                 }
             } catch (err) {
-                console.error("স্ট্যাটাস চেক করতে সমস্যা হচ্ছে:", err);
+                console.error("লাইভ ডাটা ট্র্যাকিং এরর:", err);
             }
         }, 5000);
     }
