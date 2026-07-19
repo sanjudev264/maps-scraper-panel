@@ -11,6 +11,14 @@ on:
         description: 'Domains to exclude'
         required: false
         default: ''
+      min_rating:
+        description: 'Minimum Rating'
+        required: false
+        default: '0'
+      max_rating:
+        description: 'Maximum Rating'
+        required: false
+        default: '5'
 
 jobs:
   scrape:
@@ -29,11 +37,10 @@ jobs:
       run: |
         npm install puppeteer-extra puppeteer-extra-plugin-stealth puppeteer
 
-    # 🔍 ফাইল চেক করার স্টেপ (এরর থাকলে গিটহাব লগেই ধরা পড়বে)
     - name: Check Input File
       run: |
         if [ ! -f "input.csv" ]; then
-          echo "❌ Error: input.csv file is missing in the workspace!"
+          echo "❌ Error: input.csv file is missing!"
           exit 1
         fi
 
@@ -41,14 +48,11 @@ jobs:
       env:
         INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
         EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
+        MIN_RATING: ${{ github.event.inputs.min_rating }}
+        MAX_RATING: ${{ github.event.inputs.max_rating }}
       run: |
-        if [ -f "scraper.js" ]; then
-          node scraper.js
-        else
-          node index.js
-        fi
+        node scraper.js
 
-    # 💾 নির্দিষ্ট করে শুধু output.csv ফাইলটিই আপলোড হবে, ফাইল না থাকলে টাস্ক ফেইল্ড দেখাবে
     - name: Upload Output Artifact
       uses: actions/upload-artifact@v4
       with:
