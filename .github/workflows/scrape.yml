@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       include_categories:
-        description: 'Categories to include (newline separated)'
+        description: 'Categories to include'
         required: false
         default: ''
         type: string
       exclude_domains:
-        description: 'Domains to exclude (newline separated)'
+        description: 'Domains to exclude'
         required: false
         default: ''
         type: string
       min_rating:
         description: 'Minimum Rating'
         required: false
-        default: '0'
+        default: '3'
         type: string
       max_rating:
         description: 'Maximum Rating'
