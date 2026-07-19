@@ -29,7 +29,14 @@ jobs:
       run: |
         npm install puppeteer-extra puppeteer-extra-plugin-stealth puppeteer
 
-    # 💡 এখানে আমরা চেক করছি আপনার ফাইল index.js নাকি scraper.js, যেটিই হোক স্ক্রিপ্ট রান হবেই!
+    # 🔍 ফাইল চেক করার স্টেপ (এরর থাকলে গিটহাব লগেই ধরা পড়বে)
+    - name: Check Input File
+      run: |
+        if [ ! -f "input.csv" ]; then
+          echo "❌ Error: input.csv file is missing in the workspace!"
+          exit 1
+        fi
+
     - name: Run Scraper Script
       env:
         INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
@@ -41,9 +48,10 @@ jobs:
           node index.js
         fi
 
+    # 💾 নির্দিষ্ট করে শুধু output.csv ফাইলটিই আপলোড হবে, ফাইল না থাকলে টাস্ক ফেইল্ড দেখাবে
     - name: Upload Output Artifact
-      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: google-maps-leads
         path: output.csv
+        if-no-files-found: error
