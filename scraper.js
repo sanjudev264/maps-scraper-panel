@@ -52,33 +52,51 @@ function isExcludedWebsite(url) {
   }
 }
 
+// 🎯 অ্যাড্রেস থেকে Street, City, State আলাদা করার একদম নতুন শক্তিশালী ফাংশন
 function parseAddress(addressStr) {
   let street = "", city = "", state = "", country = "United States"; 
   if (!addressStr) return { street, city, state, country };
 
-  const parts = addressStr.split(',').map(p => p.trim());
-  if (parts.length >= 3) {
-    const lastPart = parts[parts.length - 1];
-    const secondLast = parts[parts.length - 2];
-    const stateZipRegex = /^([A-Z]{2})\s+\d{5}(-\d{4})?$/i;
+  // অ্যাড্রেস থেকে United States লেখাটি থাকলে তা বাদ দিয়ে ক্লিন করা
+  let cleanAddr = addressStr.replace(/,?\s*United States$/i, '').trim();
+
+  // US State এবং Zip কোড খোঁজার রেগুলার এক্সপ্রেশন (e.g., MD 21401 or MD)
+  const stateZipRegex = /\b([A-Z]{2})\s*(\d{5}(-\d{4})?)?\s*$/i;
+  const match = cleanAddr.match(stateZipRegex);
+
+  if (match) {
+    state = match[1].toUpperCase(); // State পেয়ে গেলাম (e.g., MD)
+    // জিপ কোড এবং স্টেটের অংশটুকু মূল টেক্সট থেকে বাদ দিন
+    let remaining = cleanAddr.substring(0, match.index).trim().replace(/,$/, '').trim();
     
-    if (stateZipRegex.test(lastPart)) {
-      state = lastPart.split(' ')[0];
-      city = secondLast;
-      street = parts.slice(0, parts.length - 2).join(', ');
-    } else if (stateZipRegex.test(secondLast)) {
-      country = lastPart;
-      state = secondLast.split(' ')[0];
-      city = parts[parts.length - 3];
-      street = parts.slice(0, parts.length - 3).join(', ');
-    } else {
-      street = parts.slice(0, parts.length - 2).join(', ');
-      city = secondLast;
-      state = lastPart;
+    // এবার কমা দিয়ে বা শেষ শব্দ ধরে City এবং Street আলাদা করা
+    const parts = remaining.split(',').map(p => p.trim());
+    if (parts.length > 1) {
+      city = parts[parts.length - 1];
+      street = parts.slice(0, parts.length - 1).join(', ');
+    } else if (parts.length === 1 && parts[0] !== "") {
+      // যদি কোনো কমা না থাকে, তবে শেষ শব্দটিকে City ধরা হবে এবং বাকিটা Street
+      const words = parts[0].split(/\s+/);
+      if (words.length > 1) {
+        city = words[words.length - 1];
+        street = words.slice(0, words.length - 1).join(' ');
+      } else {
+        city = words[0];
+        street = ""; // কোনো স্ট্রিট অ্যাড্রেস ম্যাপে দেওয়া ছিল না
+      }
     }
   } else {
-    street = addressStr;
+    // যদি কোনো স্টেট ফরম্যাট না মেলে, তবে নরমাল কমা স্প্লিট
+    const parts = cleanAddr.split(',').map(p => p.trim());
+    if (parts.length >= 2) {
+      street = parts.slice(0, parts.length - 2).join(', ');
+      city = parts[parts.length - 2];
+      state = parts[parts.length - 1];
+    } else {
+      street = cleanAddr;
+    }
   }
+
   return { street, city, state, country };
 }
 
@@ -104,7 +122,7 @@ async function runUltimateScraper() {
     try { completedLinks = JSON.parse(fs.readFileSync(progressFile, 'utf-8')); } catch (e) {}
   }
 
-  // নতুন ফাইল হলে হেডার যুক্ত করা (BOM ফিক্সসহ)
+  // একদম ফ্রেশ হেডার তৈরি (BOM ক্যারেক্টার সমস্যা সম্পূর্ণ ফিক্সড)
   if (!fs.existsSync(outputFile)) {
     fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
   }
@@ -172,18 +190,15 @@ async function runUltimateScraper() {
             let rating = '0';
             let reviewCount = '0';
             
-            // নতুন গুগল ম্যাপস ক্লাস নেম অনুযায়ী রেটিং ও রিভিউ ব্যাকআপ হ্যান্ডলিং
+            // রেটিং এলিমেন্ট রিড করা
             const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]') || document.querySelector('span.ceNzKf');
-            if (ratingEl) rating = ratingEl.innerText.replace(/[^0-9.]/g, '').trim();
+            if (ratingEl) rating = ratingEl.innerText.trim();
             
-            // রিভিউ কাউন্ট ফিক্স (যেকোনো ফরম্যাট থেকে শুধু সংখ্যা তুলে আনবে)
-            const reviewEl = document.querySelector('div.F7nice button.HH2X1e') || document.querySelector('span.Zkbbqd');
+            // গুগল ম্যাপসের নতুন ইন্টারনাল টেক্সট থেকে রিভিউ সংখ্যা বের করা
+            const reviewEl = document.querySelector('div.F7nice button.HH2X1e') || document.querySelector('span.Zkbbqd') || document.querySelector('.fontBodyMedium span[aria-label*="reviews"]');
             if (reviewEl) {
-              const rawReviews = reviewEl.innerText;
-              const matches = rawReviews.match(/\d+([\.,]\d+)?/);
-              if (matches) {
-                reviewCount = matches[0].replace(/[\.,]/g, '');
-              }
+              const matches = reviewEl.innerText.match(/\d+/);
+              if (matches) reviewCount = matches[0];
             }
 
             let website = '';
@@ -212,7 +227,7 @@ async function runUltimateScraper() {
 
           if (uniqueTracker.has(lowerTitle) || (cleanPhone && uniqueTracker.has(cleanPhone))) continue;
 
-          // ⭐ ফিল্টারিং লজিক: রেটিং ৩ বা তার বেশি হতে হবে
+          // ⭐ রেটিং ৩ বা তার বেশি ফিল্টারিং
           const numericRating = parseFloat(details.rating) || 0;
           if (numericRating < 3.0) {
             console.log(`      [-] Skipped: ${details.title} (Rating: ${details.rating})`);
@@ -229,16 +244,17 @@ async function runUltimateScraper() {
           uniqueTracker.add(lowerTitle);
           if (cleanPhone) uniqueTracker.add(cleanPhone);
 
+          // নতুন অ্যাড্রেস পার্সার ব্যবহার
           const { street, city, state, country } = parseAddress(details.address);
 
-          // অদ্ভুত ক্যারেক্টার ক্লিন করে একদম ফ্রেশ ভ্যালু ইনসার্ট
-          const cleanRating = details.rating.replace(/[^0-9.]/g, '');
-          const cleanReviewCount = details.reviewCount.replace(/[^0-9]/g, '');
+          // চারকোনা বক্স বা ইনভ্যালিড টেক্সট ক্লিন করা
+          const cleanRating = details.rating.replace(/[^0-9.]/g, '').trim();
+          const cleanReviewCount = details.reviewCount.replace(/[^0-9]/g, '').trim();
 
-          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${details.googleMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${cleanReviewCount}","${cleanRating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
+          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${details.googleMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${cleanReviewCount || '0'}","${cleanRating || '0'}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          console.log(`      [+] Saved: ${details.title} | Rating: ${cleanRating} ⭐ | Reviews: ${cleanReviewCount}`);
+          console.log(`      [+] Saved: ${details.title} | Rating: ${cleanRating} | Reviews: ${cleanReviewCount} | City: ${city} | State: ${state}`);
 
         } catch (err) {
           continue;
@@ -255,7 +271,7 @@ async function runUltimateScraper() {
 
   if (fs.existsSync(progressFile)) fs.unlinkSync(progressFile);
   await browser.close();
-  console.log(`\n🎉 ফিক্স সম্পন্ন হয়েছে! নতুন ফাইলে ডাটা একদম ফ্রেশ আসবে।`);
+  console.log(`\n🎉 আপডেট সম্পন্ন! এখন ডাটা একদম পারফেক্ট কলামে আসবে।`);
 }
 
 runUltimateScraper();
