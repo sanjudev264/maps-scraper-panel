@@ -51,7 +51,7 @@ function parseAddress(addressStr) {
       const words = parts[0].split(/\s+/);
       if (words.length > 1) {
         city = words[words.length - 1];
-        street = words.slice(0, words.slice(0, words.slice(0, words.length - 1).join(' ').length).trim();
+        street = words.slice(0, words.length - 1).join(' ').trim();
       } else { city = words[0]; }
     }
   } else {
@@ -146,15 +146,14 @@ async function runUltimateScraper() {
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
             
-            // 🎯 ২. স্ক্রিনশট অনুযায়ী কাস্টমাইজড রিভিউ কাউন্ট ফিক্স
-            // প্রথমে সরাসরি আপনার স্ক্রিনশটের ক্লাস এবং টেক্সট প্যাটার্ন ম্যাচ করার চেষ্টা করবে
+            // ২. রিভিউ কাউন্ট ফিক্স (.fontBodySmall ক্লাস টার্গেট)
             const specificReviewEl = document.querySelector('.fontBodySmall');
             if (specificReviewEl && (specificReviewEl.innerText.includes('reviews') || specificReviewEl.innerText.includes('রিভিউ'))) {
               const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
               if (matches) reviewCount = matches[0];
             }
 
-            // যদি উপরের সুনির্দিষ্ট ক্লাসে না পায়, তবে ব্যাকআপ হিসেবে পুরো প্যানেল স্ক্যান করবে
+            // ব্যাকআপ হিসেবে পুরো প্যানেল স্ক্যান
             if (reviewCount === '0') {
               const allElements = Array.from(document.querySelectorAll('button, span, div'));
               for (let el of allElements) {
