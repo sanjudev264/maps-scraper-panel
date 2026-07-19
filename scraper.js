@@ -6,15 +6,17 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// প্যানেল থেকে পাঠানো ক্যাটাগরি রিড করা
 const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 
+// যদি প্যানেলে কিছু না দেন, তবেই শুধু ডিফল্ট লিস্ট কাজ করবে
 const targetKeywords = rawInclude 
-  ? rawInclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
-  : ["air duct", "asbestos", "restoration", "carpet", "construction", "contractor", "damage", "debris", "demolition", "environmental", "fire", "general contractor", "inspector", "mold", "plumber", "remodel", "roofing", "water"];
+  ? rawInclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
+  : []; 
 
 const excludedDomainsRaw = rawExclude 
-  ? rawExclude.split(',').map(item => item.trim().toLowerCase()).filter(Boolean) 
+  ? rawExclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [];
 
 function isExcludedWebsite(url) {
@@ -22,9 +24,9 @@ function isExcludedWebsite(url) {
   try {
     const parsedUrl = new URL(url);
     let hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
-    const defaultExcluded = ['servpro.com', 'pauldavis.com', 'puroclean.com', 'servicemasterrestore.com', 'servicemasterclean.com', 'rainbowrestores.com', 'restoration1.com', '1800waterdamage.com', 'advantaclean.com', 'myvoda.com', 'steamatic.com', 'coderedrestore.com', '911restoration.com', 'stanleysteemer.com', 'biooneinc.com', 'belfor.com', 'atirestoration.com', 'goblusky.com', 'cottonholdings.com', 'bmscat.com'];
+    const defaultExcluded = ['servpro.com', 'pauldavis.com', 'puroclean.com', 'youtube.com', 'linkedin.com', 'crunchbase.org', 'pitchbook.com', 'yelp.com'];
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
-    if (excludedDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain))) return true;
+    if (excludedDomains.some(domain => hostname === domain || hostname.includes(domain))) return true;
     return false;
   } catch (e) { return false; }
 }
@@ -73,7 +75,7 @@ async function runUltimateScraper() {
   const lines = fileContent.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const searchLinks = lines.slice(1);
 
-  // BOM সমস্যা ও মেমোরি লোড কমাতে ফ্রেশ রাইটিং
+  // হেডার রাইট করা নিশ্চিত করা
   fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
 
   const browser = await puppeteer.launch({
@@ -86,31 +88,32 @@ async function runUltimateScraper() {
 
   for (let i = 0; i < searchLinks.length; i++) {
     const searchUrl = searchLinks[i];
+    console.log(`[Processing] URL: ${searchUrl}`);
     try {
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      await delay(4000); 
+      await delay(5000); 
 
       const sidebarSelector = '.m6QErb[aria-label]';
       await page.evaluate(async (selector) => {
         const sidebar = document.querySelector(selector);
         if (sidebar) {
-          for (let s = 0; s < 4; s++) {
-            sidebar.scrollBy(0, 1500);
+          for (let s = 0; s < 5; s++) {
+            sidebar.scrollBy(0, 2000);
             await new Promise(r => setTimeout(r, 1000));
           }
         }
       }, sidebarSelector);
 
       const companyElements = await page.$$('a[href*="/maps/place/"]');
+      console.log(`Found ${companyElements.length} shops to check.`);
 
       for (let j = 0; j < companyElements.length; j++) {
         try {
           const element = companyElements[j];
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
-          await delay(3000); 
+          await delay(3500); 
 
-          // ⚠️ ব্রাউজার মেমোরি ক্র্যাশ ঠেকাতে শুধু স্ট্রিং টেক্সট রিটার্ন করা হচ্ছে
           const details = await page.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
             const title = nameEl ? nameEl.innerText.toString().trim() : '';
@@ -150,8 +153,13 @@ async function runUltimateScraper() {
 
           if (!details || !details.title) continue;
 
-          const numericRating = parseFloat(details.rating) || 0;
-          if (numericRating < 3.0) continue;
+          // ডায়নামিক ক্যাটাগরি ম্যাচিং ফিল্টার
+          if (targetKeywords.length > 0) {
+            const currentCat = details.category.toLowerCase();
+            const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword));
+            if (!isMatched) continue; // ম্যাচ না করলে স্কিপ করবে
+          }
+
           if (details.website && isExcludedWebsite(details.website)) continue;
 
           const { street, city, state, country } = parseAddress(details.address);
@@ -167,7 +175,7 @@ async function runUltimateScraper() {
   }
 
   await browser.close();
-  console.log(`🎉 স্ক্র্যাপিং শেষ!`);
+  console.log(`🎉 স্ক্র্যাপিং সফলভাবে শেষ হয়েছে!`);
 }
 
 runUltimateScraper();
