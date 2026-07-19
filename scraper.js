@@ -6,11 +6,13 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// প্যানেল থেকে পাঠানো ক্যাটাগরি রিড করা
+// এনভায়রনমেন্ট ভ্যারিয়েবল থেকে প্যানেলের ইনপুট ডেটা রিড করা
 const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
+const minRatingInput = parseFloat(process.env.MIN_RATING) || 0;
+const maxRatingInput = parseFloat(process.env.MAX_RATING) || 5;
 
-// যদি প্যানেলে কিছু না দেন, তবেই শুধু ডিফল্ট লিস্ট কাজ করবে
+// নতুন লাইন (\n) দিয়ে টেক্সটকে অ্যারেতে কনভার্ট করা
 const targetKeywords = rawInclude 
   ? rawInclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
   : []; 
@@ -24,7 +26,7 @@ function isExcludedWebsite(url) {
   try {
     const parsedUrl = new URL(url);
     let hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
-    const defaultExcluded = ['servpro.com', 'pauldavis.com', 'puroclean.com', 'youtube.com', 'linkedin.com', 'crunchbase.org', 'pitchbook.com', 'yelp.com'];
+    const defaultExcluded = ['youtube.com', 'linkedin.com', 'crunchbase.org', 'pitchbook.com', 'yelp.com'];
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
     if (excludedDomains.some(domain => hostname === domain || hostname.includes(domain))) return true;
     return false;
@@ -75,7 +77,7 @@ async function runUltimateScraper() {
   const lines = fileContent.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const searchLinks = lines.slice(1);
 
-  // হেডার রাইট করা নিশ্চিত করা
+  // হেডার রাইট করা নিশ্চিত করা (পুরানো ফাইল থাকলে ওভাররাইট হবে)
   fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
 
   const browser = await puppeteer.launch({
@@ -88,7 +90,7 @@ async function runUltimateScraper() {
 
   for (let i = 0; i < searchLinks.length; i++) {
     const searchUrl = searchLinks[i];
-    console.log(`[Processing] URL: ${searchUrl}`);
+    console.log(`\n[Processing] URL: ${searchUrl}`);
     try {
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
       await delay(5000); 
@@ -112,7 +114,7 @@ async function runUltimateScraper() {
           const element = companyElements[j];
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
-          await delay(3500); 
+          await delay(4000); 
 
           const details = await page.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
@@ -125,12 +127,20 @@ async function runUltimateScraper() {
             let rating = '0';
             let reviewCount = '0';
             
-            const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]') || document.querySelector('span.ceNzKf');
-            if (ratingEl) rating = ratingEl.innerText.toString().replace(/[^0-9.]/g, '').trim();
+            // শক্তিশালী রেটিং এলিমেন্ট ডিটেকশন (ইংরেজি ও বাংলা ম্যাপস লেআউটের জন্য)
+            const ratingTextEl = document.querySelector('span.ceNzKf[aria-label]');
+            if (ratingTextEl) {
+              const attr = ratingTextEl.getAttribute('aria-label');
+              const match = attr ? attr.match(/([0-9.]+)\s*stars/) || attr.match(/([0-9.]+)\s*তারকা/) : null;
+              if (match) rating = match[1];
+            } else {
+              const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]');
+              if (ratingEl) rating = ratingEl.innerText.toString().trim();
+            }
             
             const reviewEl = document.querySelector('div.F7nice button.HH2X1e') || document.querySelector('span.Zkbbqd');
             if (reviewEl) {
-              const matches = reviewEl.innerText.toString().match(/\d+/);
+              const matches = reviewEl.innerText.toString().replace(/,/g, '').match(/\d+/);
               if (matches) reviewCount = matches[0];
             }
 
@@ -153,11 +163,18 @@ async function runUltimateScraper() {
 
           if (!details || !details.title) continue;
 
-          // ডায়নামিক ক্যাটাগরি ম্যাচিং ফিল্টার
+          // 🎯 ডায়নামিক রেটিং ফিল্টার চেক
+          const numericRating = parseFloat(details.rating) || 0;
+          if (numericRating < minRatingInput || numericRating > maxRatingInput) {
+            console.log(`[-] Skipped (Rating ${numericRating} is out of specified range [${minRatingInput} - ${maxRatingInput}])`);
+            continue; 
+          }
+
+          // ڈায়নামিক ক্যাটাগরি ফিল্টার চেক
           if (targetKeywords.length > 0) {
             const currentCat = details.category.toLowerCase();
             const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword));
-            if (!isMatched) continue; // ম্যাচ না করলে স্কিপ করবে
+            if (!isMatched) continue;
           }
 
           if (details.website && isExcludedWebsite(details.website)) continue;
@@ -167,7 +184,7 @@ async function runUltimateScraper() {
           const csvRow = `"${searchUrl.replace(/"/g, '""')}","${details.googleMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          console.log(`[+] Saved: ${details.title}`);
+          console.log(`[+] Saved: ${details.title} (Rating: ${numericRating})`);
 
         } catch (err) { continue; }
       }
