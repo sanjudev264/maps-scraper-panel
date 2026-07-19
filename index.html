@@ -23,109 +23,36 @@
             width: 100%;
             max-width: 650px;
         }
-        h2 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 25px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #444;
-        }
+        h2 { text-align: center; color: #333; margin-bottom: 25px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; }
         input[type="text"], input[type="password"], textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 14px;
+            width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px;
         }
-        textarea {
-            resize: vertical;
-            height: 100px;
-        }
-        .rating-box {
-            display: flex;
-            gap: 15px;
-        }
-        .rating-box input {
-            width: 50%;
-        }
+        textarea { resize: vertical; height: 100px; }
+        .rating-box { display: flex; gap: 15px; }
+        .rating-box input { width: 50%; }
         button {
-            width: 100%;
-            padding: 12px;
-            background-color: #5c5edc;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
+            width: 100%; padding: 12px; background-color: #5c5edc; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s;
         }
-        button:hover {
-            background-color: #4749a0;
-        }
-        button:disabled {
-            background-color: #a5a6e4;
-            cursor: not-allowed;
-        }
-        .status-box {
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 4px;
-            text-align: center;
-            font-weight: 600;
-            display: none;
-        }
+        button:hover { background-color: #4749a0; }
+        button:disabled { background-color: #a5a6e4; cursor: not-allowed; }
+        .status-box { margin-top: 20px; padding: 12px; border-radius: 4px; text-align: center; font-weight: 600; display: none; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-        
-        #download_box {
-            margin-top: 25px;
-            padding: 20px;
-            border: 2px dashed #5c5edc;
-            background-color: #f0f1ff;
-            border-radius: 6px;
-            text-align: center;
-            display: none;
-        }
-        .btn-download {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 10px 20px;
-            background-color: #17a2b8;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .btn-download:hover {
-            background-color: #138496;
-        }
-        .bell {
-            font-size: 30px;
-            display: inline-block;
-        }
+        #download_box { margin-top: 25px; padding: 20px; border: 2px dashed #5c5edc; background-color: #f0f1ff; border-radius: 6px; text-align: center; display: none; }
+        .btn-download { display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #17a2b8; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        .btn-download:hover { background-color: #138496; }
+        .bell { font-size: 30px; display: inline-block; }
         @keyframes ring {
             0% { transform: rotate(0); }
             10% { transform: rotate(15deg); }
             20% { transform: rotate(-15deg); }
-            30% { transform: rotate(10deg); }
-            40% { transform: rotate(-10deg); }
-            50% { transform: rotate(5deg); }
-            60% { transform: rotate(-5deg); }
+            10% { transform: rotate(10deg); }
             100% { transform: rotate(0); }
         }
-        .ring {
-            animation: ring 1s ease-in-out infinite;
-        }
+        .ring { animation: ring 1s ease-in-out infinite; }
     </style>
 </head>
 <body>
@@ -161,8 +88,8 @@
     <div class="form-group">
         <label>৪. রেটিং ফিল্টার (Minimum & Maximum Rating):</label>
         <div class="rating-box">
-            <input type="text" id="min_rating" value="3" placeholder="Min (e.g., 3)">
-            <input type="text" id="max_rating" value="5" placeholder="Max (e.g., 5)">
+            <input type="text" id="min_rating" value="3" placeholder="Min">
+            <input type="text" id="max_rating" value="5" placeholder="Max">
         </div>
     </div>
 
@@ -174,7 +101,7 @@
         <div id="bell_element" class="bell">🔔</div>
         <h3 style="margin: 10px 0; color: #333;">স্ক্র্যাপিং সফলভাবে শেষ হয়েছে!</h3>
         <p id="download_msg" style="font-size: 14px; color: #555;">আপনার ফাইলটি ডাউনলোড করার জন্য নিচের বাটনে ক্লিক করুন।</p>
-        <a id="download_link" href="#" target="_blank" class="btn-download">📥 Download Output.csv</a>
+        <a id="download_link" href="#" target="_blank" class="btn-download">📥 Open Actions Run Page</a>
     </div>
 </div>
 
@@ -208,26 +135,27 @@
 
         showStatus("📡 গিটহাব অ্যাকশনের সাথে কানেক্ট করা হচ্ছে...", "info");
 
-        // ইনপুট ফাইল আপডেট (input.csv তে লিঙ্ক রাইট করা)
         const csvContent = "search_url\n" + links.split('\n').map(l => `"${l.trim()}"`).join('\n');
         const fileUrl = `https://api.github.com/repos/${repo}/contents/input.csv`;
 
         try {
-            // বিদ্যমান ফাইলের SHA রিড করা
             let sha = "";
             const fileCheck = await fetch(fileUrl, {
-                headers: { 'Authorization': `token ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
             });
             if (fileCheck.status === 200) {
                 const fileData = await fileCheck.json();
                 sha = fileData.sha;
             }
 
-            // নতুন input.csv ফাইল পুশ করা
             const pushRes = await fetch(fileUrl, {
                 method: 'PUT',
                 headers: {
-                    'Authorization': `token ${token}`,
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -237,16 +165,17 @@
                 })
             });
 
-            if (!pushRes.ok) throw new Error("ইনপুট লিঙ্ক আপডেট করতে ব্যর্থ হয়েছে।");
+            if (!pushRes.ok) throw new Error("ইনপুট লিঙ্ক আপডেট করতে ব্যর্থ হয়েছে। আপনার টোকেনের পারমিশন চেক করুন।");
 
             showStatus("⚙️ গিটহাব অ্যাকশন স্ক্র্যাপার ট্রিগার করা হচ্ছে...", "info");
 
-            // ওয়ার্কফ্লো রান করানো এবং এনভায়রনমেন্ট ভ্যারিয়েবল পাস করা
+            // গিটহাবের রিকোয়েস্ট এক্সেপ্টেন্স হেডার এবং বেয়ারার টোকেন মেকানিজম আপডেট
             const workflowUrl = `https://api.github.com/repos/${repo}/actions/workflows/main.yml/dispatches`;
             const dispatchRes = await fetch(workflowUrl, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `token ${token}`,
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -260,11 +189,12 @@
                 })
             });
 
-            if (!dispatchRes.ok) throw new Error("অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে।");
+            if (!dispatchRes.ok) {
+                const errData = await dispatchRes.json().catch(() => ({}));
+                throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে। মেইন ফাইলের নামের সাথে মিল আছে কিনা দেখুন।");
+            }
 
             showStatus("🏃‍♂️ স্ক্র্যাপার ব্যাকগ্রাউন্ডে রান হয়েছে! লাইভ স্ট্যাটাস চেক করা হচ্ছে...", "info");
-            
-            // লাইভ মনিটরিং স্টার্ট
             trackWorkflowStatus(token, repo);
 
         } catch (err) {
@@ -281,7 +211,10 @@
         const interval = setInterval(async () => {
             try {
                 const res = await fetch(runsUrl, {
-                    headers: { 'Authorization': `token ${token}` }
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/vnd.github+json'
+                    }
                 });
                 const data = await res.json();
                 
@@ -296,24 +229,19 @@
                         showStatus(`⏳ স্ক্র্যাপার রানিং আছে... (সময়কাল: ${checkCount * 5} সেকেন্ড)`, "info");
                     } else if (status === 'completed' && conclusion === 'success') {
                         clearInterval(interval);
-                        showStatus("🎉 স্ক্র্যাপিং সম্পন্ন হয়েছে! ডাউনলোড লিঙ্ক জেনারেট করা হচ্ছে...", "success");
+                        showStatus("🎉 স্ক্র্যাপিং সম্পন্ন হয়েছে!", "success");
 
-                        // গিটহাবের আর্টিফ্যাক্ট ডাউনলোড করতে অ্যাকশন রান পেজে সরাসরি পাঠানো
                         const downloadBox = document.getElementById('download_box');
                         const downloadLink = document.getElementById('download_link');
                         const bellElement = document.getElementById('bell_element');
 
-                        // রান পেজের ইউআরএল সেট
-                        downloadLink.href = `https://github.com/${repo}/actions/runs/${currentRun.id}`;
-                        document.getElementById('download_msg').innerText = "আপনার ফাইলটি গিটহাব আর্টিফ্যাক্ট হিসেবে সেভ হয়েছে। নিচের বোতামে ক্লিক করে রান পেজের তলদেশ (Bottom) থেকে ফাইলটি নামিয়ে নিন।";
-                        
+                        downloadLink.href = currentRun.html_url;
                         downloadBox.style.display = 'block';
                         bellElement.classList.add('ring');
                         
                         document.getElementById('btn_run').disabled = false;
                         document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
 
-                        // নোটিফিকেশন সাউন্ড
                         try {
                             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                             const oscillator = audioCtx.createOscillator();
@@ -324,9 +252,9 @@
                             oscillator.stop(audioCtx.currentTime + 0.3);
                         } catch(e){}
 
-                    } else {
+                    } else if (status === 'completed') {
                         clearInterval(interval);
-                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে বা বাতিল করা হয়েছে! (Conclusion: ${conclusion})`, "error");
+                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে! (Conclusion: ${conclusion})`, "error");
                         document.getElementById('btn_run').disabled = false;
                         document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
                     }
@@ -334,7 +262,7 @@
             } catch (err) {
                 console.error("স্ট্যাটাস চেক করতে সমস্যা হচ্ছে:", err);
             }
-        }, 5000); // প্রতি ৫ সেকেন্ড পর পর আপডেট চেক করবে
+        }, 5000);
     }
 </script>
 
