@@ -36,7 +36,11 @@ function isExcludedWebsite(url) {
 function parseAddress(addressStr) {
   let street = "", city = "", state = "", country = "United States"; 
   if (!addressStr) return { street, city, state, country };
-  let cleanAddr = addressStr.replace(/,?\s*United States$/i, '').trim();
+  
+  // ঠিকানার ভেতরের যেকোনো হিডেন বা ব্রোকেন ক্যারেক্টার এবং স্পেস ক্লিন করা (সাদা বক্স ফিক্স)
+  let cleanAddr = addressStr.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
+  cleanAddr = cleanAddr.replace(/,?\s*United States$/i, '').trim();
+  
   const stateZipRegex = /\b([A-Z]{2})\s*(\d{5}(-\d{4})?)?\s*$/i;
   const match = cleanAddr.match(stateZipRegex);
   if (match) {
@@ -50,15 +54,15 @@ function parseAddress(addressStr) {
       const words = parts[0].split(/\s+/);
       if (words.length > 1) {
         city = words[words.length - 1];
-        street = words.slice(0, words.length - 1).join(' ');
+        street = words.slice(0, words.slice(0, words.length - 1).join(' ').length).trim();
       } else { city = words[0]; }
     }
   } else {
     const parts = cleanAddr.split(',').map(p => p.trim());
     if (parts.length >= 2) {
-      street = parts.slice(0, parts.length - 2).join(', ');
-      city = parts[parts.length - 2];
       state = parts[parts.length - 1];
+      city = parts[parts.length - 2];
+      street = parts.slice(0, parts.length - 2).join(', ');
     } else { street = cleanAddr; }
   }
   return { street, city, state, country };
@@ -77,8 +81,11 @@ async function runUltimateScraper() {
   const lines = fileContent.split(/\r?\n/).map(line => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const searchLinks = lines.slice(1);
 
-  // হেডার রাইট করা নিশ্চিত করা (পুরানো ফাইল থাকলে ওভাররাইট হবে)
+  // UTF-8 BOM সহ হেডার রাইট করা যাতে এক্সেল ফাইল সরাসরি ওপেন করলেও ফন্ট না ভাঙে
   fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Street","City","State","Country","Category"\n', 'utf-8');
+
+  // ডুপ্লিকেট রোধ করার জন্য ইউনিক সেট ব্যবহার
+  const scrapedMapUrls = new Set();
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -99,9 +106,9 @@ async function runUltimateScraper() {
       await page.evaluate(async (selector) => {
         const sidebar = document.querySelector(selector);
         if (sidebar) {
-          for (let s = 0; s < 5; s++) {
-            sidebar.scrollBy(0, 2000);
-            await new Promise(r => setTimeout(r, 1000));
+          for (let s = 0; s < 6; s++) {
+            sidebar.scrollBy(0, 2500);
+            await new Promise(r => setTimeout(r, 1200));
           }
         }
       }, sidebarSelector);
@@ -112,6 +119,13 @@ async function runUltimateScraper() {
       for (let j = 0; j < companyElements.length; j++) {
         try {
           const element = companyElements[j];
+          
+          // গিটহাব ম্যাপস ইউআরএল সরাসরি এলিমেন্ট থেকে আগেই রিড করে চেক করা (ডুপ্লিকেট আটকানোর প্রধান লজিক)
+          const currentMapUrl = await page.evaluate(el => el.href ? el.href.toString() : '', element);
+          if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) {
+            continue; // ডুপ্লিকেট হলে স্কিপ করবে
+          }
+
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
           await delay(4000); 
@@ -127,7 +141,7 @@ async function runUltimateScraper() {
             let rating = '0';
             let reviewCount = '0';
             
-            // শক্তিশালী রেটিং এলিমেন্ট ডিটেকশন (ইংরেজি ও বাংলা ম্যাপস লেআউটের জন্য)
+            // ১. রেটিং ডিটেকশন ফিক্স
             const ratingTextEl = document.querySelector('span.ceNzKf[aria-label]');
             if (ratingTextEl) {
               const attr = ratingTextEl.getAttribute('aria-label');
@@ -138,10 +152,24 @@ async function runUltimateScraper() {
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
             
-            const reviewEl = document.querySelector('div.F7nice button.HH2X1e') || document.querySelector('span.Zkbbqd');
-            if (reviewEl) {
-              const matches = reviewEl.innerText.toString().replace(/,/g, '').match(/\d+/);
-              if (matches) reviewCount = matches[0];
+            // 🎯 ২. শক্তিশালী রিভিউ কাউন্ট ডিটেকশন ফিক্স (একাধিক ক্লাস চেক করা হচ্ছে)
+            const reviewSelectors = [
+              'div.F7nice button.HH2X1e', 
+              'div.F7nice span.Zkbbqd',
+              'button[jsaction*="pane.review.list"] span',
+              'div.F7nice span:nth-child(2) span aria-label'
+            ];
+            
+            for (let selector of reviewSelectors) {
+              const el = document.querySelector(selector);
+              if (el) {
+                let text = el.getAttribute('aria-label') || el.innerText || '';
+                const matches = text.toString().replace(/,/g, '').match(/\d+/);
+                if (matches) {
+                  reviewCount = matches[0];
+                  break;
+                }
+              }
             }
 
             let website = '';
@@ -158,19 +186,19 @@ async function runUltimateScraper() {
             const addressEl = document.querySelector('button[data-item-id="address"]');
             if (addressEl) address = addressEl.innerText.toString().trim();
 
-            return { title, category, website, phone, address, googleMapUrl: window.location.href.toString(), rating, reviewCount };
+            return { title, category, website, phone, address, rating, reviewCount };
           });
 
           if (!details || !details.title) continue;
 
-          // 🎯 ডায়নামিক রেটিং ফিল্টার চেক
+          // ডায়নামিক রেটিং ফিল্টার চেক
           const numericRating = parseFloat(details.rating) || 0;
           if (numericRating < minRatingInput || numericRating > maxRatingInput) {
-            console.log(`[-] Skipped (Rating ${numericRating} is out of specified range [${minRatingInput} - ${maxRatingInput}])`);
+            console.log(`[-] Skipped (Rating ${numericRating} is out of specified range)`);
             continue; 
           }
 
-          // ڈায়নামিক ক্যাটাগরি ফিল্টার চেক
+          // ডায়নামিক ক্যাটাগরি ফিল্টার চেক
           if (targetKeywords.length > 0) {
             const currentCat = details.category.toLowerCase();
             const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword));
@@ -179,12 +207,14 @@ async function runUltimateScraper() {
 
           if (details.website && isExcludedWebsite(details.website)) continue;
 
+          // ঠিকানার ক্যারেক্টার ফিক্স করে ফিল্ড আলাদা করা
           const { street, city, state, country } = parseAddress(details.address);
 
-          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${details.googleMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
+          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${street.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${state.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          console.log(`[+] Saved: ${details.title} (Rating: ${numericRating})`);
+          scrapedMapUrls.add(currentMapUrl); // সেটে অ্যাড করা হলো যাতে পরে আর ডুপ্লিকেট না হয়
+          console.log(`[+] Saved: ${details.title} (Rating: ${numericRating}, Reviews: ${details.reviewCount})`);
 
         } catch (err) { continue; }
       }
