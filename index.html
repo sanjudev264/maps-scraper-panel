@@ -138,7 +138,6 @@
         const fileUrl = `https://api.github.com/repos/${repo}/contents/input.csv`;
 
         try {
-            // ১. ইনপুট ফাইল আপডেট করা
             let sha = "";
             const fileCheck = await fetch(fileUrl, {
                 headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
@@ -167,7 +166,6 @@
 
             showStatus("⚙️ ওয়ার্কফ্লো ট্রিগার করা হচ্ছে...", "info");
 
-            // 🎯 ২. সরাসরি scrape.yml ফাইলকে ট্রিগার করা হচ্ছে
             const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
             const dispatchRes = await fetch(dispatchUrl, {
                 method: 'POST',
@@ -189,11 +187,15 @@
 
             if (!dispatchRes.ok) {
                 const errData = await dispatchRes.json().catch(() => ({}));
-                throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে। গিটহাবে ফাইলের এরর ঠিক হয়েছে কিনা চেক করুন।");
+                throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে।");
             }
 
-            showStatus("🏃‍♂️ স্ক্র্যাপার সফলভাবে ব্যাকগ্রাউন্ডে রান হয়েছে! লাইভ স্ট্যাটাস চেক করা হচ্ছে...", "info");
-            trackWorkflowStatus(token, repo);
+            showStatus("🏃‍♂️ স্ক্র্যাপার ব্যাকগ্রাউন্ডে চালু হয়েছে! নিখুঁতভাবে স্ট্যাটাস ট্র্যাক করা হচ্ছে...", "info");
+            
+            // 💡 ট্রিগার করার পর গিটহাব রান প্রিপেয়ার হতে ৫ সেকেন্ড সময় দেওয়া হলো
+            setTimeout(() => {
+                trackWorkflowStatus(token, repo);
+            }, 5000);
 
         } catch (err) {
             showStatus(`❌ এরর: ${err.message}`, "error");
@@ -203,7 +205,8 @@
     }
 
     async function trackWorkflowStatus(token, repo) {
-        const runsUrl = `https://api.github.com/repos/${repo}/actions/runs?per_page=1`;
+        // 🎯 [🎯 পরিবর্তন] এখানে নির্দিষ্ট করে scrape.yml এর রানগুলো ফিল্টার করে আনা হচ্ছে
+        const runsUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/runs?per_page=1`;
         let checkCount = 0;
 
         const interval = setInterval(async () => {
@@ -221,29 +224,28 @@
                     checkCount++;
                     
                     if (status === 'queued' || status === 'in_progress') {
-                        showStatus(`⏳ স্ক্র্যাপার রানিং আছে... (সময়কাল: ${checkCount * 5} সেকেন্ড)`, "info");
+                        showStatus(`⏳ গুগল ম্যাপস স্ক্র্যাপার রানিং আছে... (চেক করা হয়েছে: ${checkCount * 5} সেকেন্ড)`, "info");
                     } else if (status === 'completed' && conclusion === 'success') {
                         clearInterval(interval);
-                        showStatus("🎉 স্ক্র্যাপিং সম্পন্ন হয়েছে!", "success");
+                        showStatus("🎉 স্ক্র্যাপিং সফলভাবে সম্পন্ন হয়েছে!", "success");
 
                         const downloadBox = document.getElementById('download_box');
                         const downloadLink = document.getElementById('download_link');
                         
                         downloadLink.href = currentRun.html_url;
                         downloadBox.style.display = 'block';
-                        document.getElementById('bell_element').classList.add('ring');
                         
                         document.getElementById('btn_run').disabled = false;
                         document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
                     } else if (status === 'completed') {
                         clearInterval(interval);
-                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে! (Conclusion: ${conclusion})`, "error");
+                        showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে! (কোডে এরর আছে বা বাতিল হয়েছে)`, "error");
                         document.getElementById('btn_run').disabled = false;
                         document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
                     }
                 }
             } catch (err) {
-                console.error(err);
+                console.error("স্ট্যাটাস চেক করতে সমস্যা হচ্ছে:", err);
             }
         }, 5000);
     }
