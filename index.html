@@ -131,7 +131,6 @@
         btn.disabled = true;
         btn.innerText = "⏳ প্রসেসিং শুরু হচ্ছে...";
         document.getElementById('download_box').style.display = 'none';
-        document.getElementById('bell_element').classList.remove('ring');
 
         showStatus("📡 গিটহাব অ্যাকশনের সাথে কানেক্ট করা হচ্ছে...", "info");
 
@@ -139,12 +138,10 @@
         const fileUrl = `https://api.github.com/repos/${repo}/contents/input.csv`;
 
         try {
+            // ১. ইনপুট ফাইল আপডেট করা
             let sha = "";
             const fileCheck = await fetch(fileUrl, {
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.github+json'
-                }
+                headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
             });
             if (fileCheck.status === 200) {
                 const fileData = await fileCheck.json();
@@ -161,17 +158,18 @@
                 body: JSON.stringify({
                     message: "Update input.csv via Web Panel",
                     content: btoa(unescape(encodeURIComponent(csvContent))),
-                    sha: sha ? sha : undefined
+                    sha: sha ? sha : undefined,
+                    branch: "main"
                 })
             });
 
-            if (!pushRes.ok) throw new Error("ইনপুট লিঙ্ক আপডেট করতে ব্যর্থ হয়েছে। আপনার টোকেনের পারমিশন চেক করুন।");
+            if (!pushRes.ok) throw new Error("ইনপুট লিঙ্ক আপডেট করতে ব্যর্থ হয়েছে।");
 
-            showStatus("⚙️ গিটহাব অ্যাকশন স্ক্র্যাপার ট্রিগার করা হচ্ছে...", "info");
+            showStatus("⚙️ ওয়ার্কফ্লো ট্রিগার করা হচ্ছে...", "info");
 
-            // গিটহাবের রিকোয়েস্ট এক্সেপ্টেন্স হেডার এবং বেয়ারার টোকেন মেকানিজম আপডেট
-            const workflowUrl = `https://api.github.com/repos/${repo}/actions/workflows/main.yml/dispatches`;
-            const dispatchRes = await fetch(workflowUrl, {
+            // 🎯 ২. সরাসরি scrape.yml ফাইলকে ট্রিগার করা হচ্ছে
+            const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/scrape.yml/dispatches`;
+            const dispatchRes = await fetch(dispatchUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -191,10 +189,10 @@
 
             if (!dispatchRes.ok) {
                 const errData = await dispatchRes.json().catch(() => ({}));
-                throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে। মেইন ফাইলের নামের সাথে মিল আছে কিনা দেখুন।");
+                throw new Error(errData.message || "অ্যাকশন ওয়ার্কফ্লো স্টার্ট করতে ব্যর্থ হয়েছে। গিটহাবে ফাইলের এরর ঠিক হয়েছে কিনা চেক করুন।");
             }
 
-            showStatus("🏃‍♂️ স্ক্র্যাপার ব্যাকগ্রাউন্ডে রান হয়েছে! লাইভ স্ট্যাটাস চেক করা হচ্ছে...", "info");
+            showStatus("🏃‍♂️ স্ক্র্যাপার সফলভাবে ব্যাকগ্রাউন্ডে রান হয়েছে! লাইভ স্ট্যাটাস চেক করা হচ্ছে...", "info");
             trackWorkflowStatus(token, repo);
 
         } catch (err) {
@@ -211,10 +209,7 @@
         const interval = setInterval(async () => {
             try {
                 const res = await fetch(runsUrl, {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/vnd.github+json'
-                    }
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
                 });
                 const data = await res.json();
                 
@@ -233,25 +228,13 @@
 
                         const downloadBox = document.getElementById('download_box');
                         const downloadLink = document.getElementById('download_link');
-                        const bellElement = document.getElementById('bell_element');
-
+                        
                         downloadLink.href = currentRun.html_url;
                         downloadBox.style.display = 'block';
-                        bellElement.classList.add('ring');
+                        document.getElementById('bell_element').classList.add('ring');
                         
                         document.getElementById('btn_run').disabled = false;
                         document.getElementById('btn_run').innerText = "🚀 স্ক্র্যাপার রান করুন";
-
-                        try {
-                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                            const oscillator = audioCtx.createOscillator();
-                            oscillator.type = 'sine';
-                            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-                            oscillator.connect(audioCtx.destination);
-                            oscillator.start();
-                            oscillator.stop(audioCtx.currentTime + 0.3);
-                        } catch(e){}
-
                     } else if (status === 'completed') {
                         clearInterval(interval);
                         showStatus(`❌ স্ক্র্যাপার রান ব্যর্থ হয়েছে! (Conclusion: ${conclusion})`, "error");
@@ -260,7 +243,7 @@
                     }
                 }
             } catch (err) {
-                console.error("স্ট্যাটাস চেক করতে সমস্যা হচ্ছে:", err);
+                console.error(err);
             }
         }, 5000);
     }
