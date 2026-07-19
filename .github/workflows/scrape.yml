@@ -1,61 +1,58 @@
-name: Google Maps Scraper
+name: Google Maps Lead Scraper
 
 on:
   workflow_dispatch:
     inputs:
       include_categories:
-        description: 'Categories to include'
+        description: 'Categories to include (newline separated)'
         required: false
         default: ''
+        type: string
       exclude_domains:
-        description: 'Domains to exclude'
+        description: 'Domains to exclude (newline separated)'
         required: false
         default: ''
+        type: string
       min_rating:
         description: 'Minimum Rating'
         required: false
         default: '0'
+        type: string
       max_rating:
         description: 'Maximum Rating'
         required: false
         default: '5'
+        type: string
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
 
-    - name: Install dependencies
-      run: |
-        npm install puppeteer-extra puppeteer-extra-plugin-stealth puppeteer
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth fs
 
-    - name: Check Input File
-      run: |
-        if [ ! -f "input.csv" ]; then
-          echo "❌ Error: input.csv file is missing!"
-          exit 1
-        fi
+      - name: Run Scraper Script
+        env:
+          INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
+          EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
+          MIN_RATING: ${{ github.event.inputs.min_rating }}
+          MAX_RATING: ${{ github.event.inputs.max_rating }}
+        run: node scraper.js
 
-    - name: Run Scraper Script
-      env:
-        INCLUDE_CATEGORIES: ${{ github.event.inputs.include_categories }}
-        EXCLUDE_DOMAINS: ${{ github.event.inputs.exclude_domains }}
-        MIN_RATING: ${{ github.event.inputs.min_rating }}
-        MAX_RATING: ${{ github.event.inputs.max_rating }}
-      run: |
-        node scraper.js
-
-    - name: Upload Output Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: google-maps-leads
-        path: output.csv
-        if-no-files-found: error
+      - name: Upload Output Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-maps-leads
+          path: output.csv
+          retention-days: 7
