@@ -27,13 +27,14 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 90  # 🎯 [১] ৯০ মিনিট পর জব নিজে থেকেই নিরাপদে বন্ধ হবে (৬ ঘণ্টা হ্যাং হবে না)
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # 🎯 [২] v3 থেকে v4 এ আপডেট করা হলো (Warning দূর হবে)
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4  # 🎯 [৩] Node v4 অ্যাকশন ব্যবহার করা হলো
         with:
           node-version: '20'
 
@@ -51,6 +52,7 @@ jobs:
         run: node scraper.js
 
       - name: Upload Output Artifact
+        if: always()  # 🎯 [৪] জব বাতিল (Cancel) বা টাইমআউট হলেও যতটুকু সেভ হয়েছে তা ডাউনলোড করতে পারবেন
         uses: actions/upload-artifact@v4
         with:
           name: google-maps-leads
