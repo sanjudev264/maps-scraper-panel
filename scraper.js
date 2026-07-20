@@ -39,7 +39,6 @@ function parseUniversalAddress(addressStr) {
   if (!addressStr) return { fullAddress, city, country };
 
   fullAddress = addressStr.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
-  
   const parts = fullAddress.split(',').map(p => p.trim()).filter(Boolean);
   
   if (parts.length > 0) {
@@ -101,8 +100,11 @@ async function runUltimateScraper() {
 
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 850 });
+  
+  // পেজ যেন ৩ সেকেন্ডের বেশি লোডিংয়ে ঝুল্যান্ট না থাকে
+  page.setDefaultNavigationTimeout(30000);
+  page.setDefaultTimeout(10000);
 
-  // 🛠️ শুধু ছবি ও মিডিয়া ব্লক করা হলো (CSS রাখা হয়েছে যেন ডাইনামিক DOM ঠিকমতো রেন্ডার হয়)
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     if (['image', 'media', 'font'].includes(req.resourceType())) {
@@ -116,8 +118,8 @@ async function runUltimateScraper() {
     const searchUrl = searchLinks[i];
     console.log(`\n[Processing] URL: ${searchUrl}`);
     try {
-      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      await delay(5000); 
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await delay(4000); 
 
       const sidebarSelector = 'div[role="feed"]';
       console.log("Scrolling sidebar to load listings...");
@@ -125,9 +127,9 @@ async function runUltimateScraper() {
       await page.evaluate(async (selector) => {
         const sidebar = document.querySelector(selector) || document.querySelector('.m6QErb');
         if (sidebar) {
-          for (let s = 0; s < 30; s++) {
-            sidebar.scrollBy(0, 3000);
-            await new Promise(r => setTimeout(r, 1000));
+          for (let s = 0; s < 25; s++) {
+            sidebar.scrollBy(0, 3500);
+            await new Promise(r => setTimeout(r, 800));
             if (document.body.innerText.includes("You've reached the end of the list")) {
               break;
             }
@@ -135,8 +137,7 @@ async function runUltimateScraper() {
         }
       }, sidebarSelector);
 
-      // 🛠️ নিখুঁত শপ ফিল্টারিংয়ের জন্য নির্দিষ্ট অ্যানর কাস্টম সিলেক্টর
-      const companyElements = await page.$$('a.hf239b, a[href*="/maps/place/"]');
+      const companyElements = await page.$$('a[href*="/maps/place/"]');
       console.log(`Found ${companyElements.length} potential shops on page.`);
 
       if (companyElements.length === 0) {
@@ -154,9 +155,13 @@ async function runUltimateScraper() {
             continue; 
           }
 
-          await page.evaluate(el => el.scrollIntoView(), element);
-          await element.click();
-          await delay(3500); // ডিটেইলস প্যানেল পুরোপুরি লোড হওয়ার জন্য সময়
+          // ⚡ [সেফটি ক্লিক] ক্লিক আটকে যাওয়া রোধ করার জন্য evaluate ভিত্তিক সাবধানী ক্লিক
+          await page.evaluate(el => {
+            el.scrollIntoView({ block: 'center' });
+            el.click();
+          }, element);
+
+          await delay(2000); // ক্লিকে তথ্য লোড হওয়া পর্যন্ত ২ সেকেন্ড অপেক্ষা
 
           const details = await page.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
@@ -211,7 +216,6 @@ async function runUltimateScraper() {
             return { title, category, website, phone, address, rating, reviewCount };
           });
 
-          // 🛠️ টাইটেল "Results" অথবা খালি হলে স্কিপ করবে
           if (!details || !details.title || details.title.toLowerCase() === 'results') continue;
 
           if (!details.address || details.address.trim() === '') {
@@ -244,13 +248,16 @@ async function runUltimateScraper() {
           scrapedMapUrls.add(currentMapUrl);
           console.log(`[+] Saved (${scrapedMapUrls.size}): ${details.title} | ${city}`);
 
-        } catch (err) { continue; }
+        } catch (err) { 
+          // কোনো শপে সমস্যা হলে স্টাক না হয়ে স্কিপ করে পরেরটাতে যাবে
+          continue; 
+        }
       }
     } catch (err) { console.error(err.message); }
   }
 
   await browser.close();
-  console.log(`🎉 স্ক্র্যাপিং সফলভাবে শেষ হয়েছে! মোট লিড সংগৃহীত: ${scrapedMapUrls.size}`);
+  console.log(`🎉 স্ক্র্যাপিং সফলভাবে শেষ হয়েছে! মোট সংগৃহীত লিড: ${scrapedMapUrls.size}`);
 }
 
 runUltimateScraper();
