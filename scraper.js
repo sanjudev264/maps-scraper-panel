@@ -98,15 +98,12 @@ async function runUltimateScraper() {
     ]
   });
 
-  const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 850 });
-  
-  // পেজ যেন ৩ সেকেন্ডের বেশি লোডিংয়ে ঝুল্যান্ট না থাকে
-  page.setDefaultNavigationTimeout(30000);
-  page.setDefaultTimeout(10000);
+  const mainPage = await browser.newPage();
+  await mainPage.setViewport({ width: 1280, height: 850 });
 
-  await page.setRequestInterception(true);
-  page.on('request', (req) => {
+  // রিমোনিং অপ্রয়োজনীয় মিডিয়া
+  await mainPage.setRequestInterception(true);
+  mainPage.on('request', (req) => {
     if (['image', 'media', 'font'].includes(req.resourceType())) {
       req.abort();
     } else {
@@ -118,52 +115,49 @@ async function runUltimateScraper() {
     const searchUrl = searchLinks[i];
     console.log(`\n[Processing] URL: ${searchUrl}`);
     try {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await delay(4000); 
+      await mainPage.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await delay(5000); 
 
-      const sidebarSelector = 'div[role="feed"]';
-      console.log("Scrolling sidebar to load listings...");
+      console.log("Scrolling sidebar to collect all shop links...");
       
-      await page.evaluate(async (selector) => {
-        const sidebar = document.querySelector(selector) || document.querySelector('.m6QErb');
+      // সাইডবার স্ক্রোল করে সব লিংক কালেক্ট করা
+      const placeLinks = await mainPage.evaluate(async () => {
+        const sidebar = document.querySelector('div[role="feed"]') || document.querySelector('.m6QErb');
         if (sidebar) {
           for (let s = 0; s < 25; s++) {
-            sidebar.scrollBy(0, 3500);
+            sidebar.scrollBy(0, 3000);
             await new Promise(r => setTimeout(r, 800));
-            if (document.body.innerText.includes("You've reached the end of the list")) {
-              break;
-            }
+            if (document.body.innerText.includes("You've reached the end of the list")) break;
           }
         }
-      }, sidebarSelector);
+        const anchors = Array.from(document.querySelectorAll('a[href*="/maps/place/"]'));
+        return anchors.map(a => a.href).filter((href, index, self) => href && self.indexOf(href) === index);
+      });
 
-      const companyElements = await page.$$('a[href*="/maps/place/"]');
-      console.log(`Found ${companyElements.length} potential shops on page.`);
+      console.log(`Found ${placeLinks.length} unique links. Scraping details now...`);
 
-      if (companyElements.length === 0) {
-        console.log("⚠️ No shops found on this page.");
-        continue;
-      }
+      // নতুন পেজে সরাসরি ইউআরএল নেভিগেট করে ডাটা তোলা (স্টাক হওয়ার চান্স ০%)
+      const detailPage = await browser.newPage();
+      await detailPage.setRequestInterception(true);
+      detailPage.on('request', (req) => {
+        if (['image', 'media', 'font'].includes(req.resourceType())) req.abort();
+        else req.continue();
+      });
 
-      for (let j = 0; j < companyElements.length; j++) {
+      for (let j = 0; j < placeLinks.length; j++) {
+        const mapUrl = placeLinks[j];
+
+        if (scrapedMapUrls.has(mapUrl)) {
+          console.log(`[-] Skipped Duplicate: ${mapUrl.substring(0, 50)}...`);
+          continue;
+        }
+
         try {
-          const element = companyElements[j];
-          
-          const currentMapUrl = await page.evaluate(el => el.href ? el.href.toString() : '', element);
-          
-          if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) {
-            continue; 
-          }
+          // সরাসরি দোকানে চলে যাবে, পেজ লোডের জন্য মাত্র ১০ সে. টাইমআউট
+          await detailPage.goto(mapUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          await delay(1500);
 
-          // ⚡ [সেফটি ক্লিক] ক্লিক আটকে যাওয়া রোধ করার জন্য evaluate ভিত্তিক সাবধানী ক্লিক
-          await page.evaluate(el => {
-            el.scrollIntoView({ block: 'center' });
-            el.click();
-          }, element);
-
-          await delay(2000); // ক্লিকে তথ্য লোড হওয়া পর্যন্ত ২ সেকেন্ড অপেক্ষা
-
-          const details = await page.evaluate(() => {
+          const details = await detailPage.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
             const title = nameEl ? nameEl.innerText.toString().trim() : '';
 
@@ -183,20 +177,12 @@ async function runUltimateScraper() {
               const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]') || document.querySelector('.fontDisplayLarge');
               if (ratingEl) rating = ratingEl.innerText.toString().trim();
             }
-            
-            const specificReviewEl = document.querySelector('.fontBodySmall');
-            if (specificReviewEl && (specificReviewEl.innerText.toLowerCase().includes('reviews') || specificReviewEl.innerText.includes('রিভিউ') || specificReviewEl.innerText.toLowerCase().includes('opinion'))) {
-                const matches = specificReviewEl.innerText.replace(/,/g, '').match(/\d+/);
-                if (matches) reviewCount = matches[0];
-            }
 
-            if (reviewCount === '0' || reviewCount === '') {
-                const reviewBtn = document.querySelector('button[jsaction*="pane.review.list"]') || document.querySelector('div.F7nice button');
-                if (reviewBtn) {
-                    const text = (reviewBtn.ariaLabel || reviewBtn.innerText || '').toLowerCase();
-                    const matches = text.replace(/,/g, '').match(/\d+/);
-                    if (matches) reviewCount = matches[0];
-                }
+            const reviewBtn = document.querySelector('button[jsaction*="pane.review.list"]') || document.querySelector('div.F7nice button');
+            if (reviewBtn) {
+              const text = (reviewBtn.ariaLabel || reviewBtn.innerText || '').toLowerCase();
+              const matches = text.replace(/,/g, '').match(/\d+/);
+              if (matches) reviewCount = matches[0];
             }
 
             let website = '';
@@ -242,17 +228,19 @@ async function runUltimateScraper() {
 
           const { fullAddress, city, country } = parseUniversalAddress(details.address);
 
-          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${fullAddress.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
+          const csvRow = `"${searchUrl.replace(/"/g, '""')}","${mapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${fullAddress.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          scrapedMapUrls.add(currentMapUrl);
-          console.log(`[+] Saved (${scrapedMapUrls.size}): ${details.title} | ${city}`);
+          scrapedMapUrls.add(mapUrl);
+          console.log(`[+] Saved (${scrapedMapUrls.size}/${placeLinks.length}): ${details.title} | ${city}`);
 
-        } catch (err) { 
-          // কোনো শপে সমস্যা হলে স্টাক না হয়ে স্কিপ করে পরেরটাতে যাবে
-          continue; 
+        } catch (err) {
+          console.log(`[-] Failed to load shop, skipping...`);
+          continue;
         }
       }
+      await detailPage.close();
+
     } catch (err) { console.error(err.message); }
   }
 
