@@ -73,19 +73,17 @@ async function runUltimateScraper() {
 
   const scrapedMapUrls = new Set();
 
-  // 🧹 [১. ফাইল ডুপ্লিকেট রিমুভ চেক] output.csv আগে থেকে থাকলে পুরনো লিংকগুলো লোড করে নেওয়া
   if (fs.existsSync(outputFile)) {
     const existingContent = fs.readFileSync(outputFile, 'utf-8');
     const existingRows = existingContent.split(/\r?\n/);
     existingRows.forEach(row => {
-      // CSV এর ২য় কলামে "Google Map URL" থাকে
       const columns = row.split('","');
       if (columns.length > 1) {
         const existingUrl = columns[1].replace(/"/g, '').trim();
         if (existingUrl) scrapedMapUrls.add(existingUrl);
       }
     });
-    console.log(`ℹ️ loaded ${scrapedMapUrls.size} existing leads from ${outputFile} to avoid duplicates.`);
+    console.log(`ℹ️ Loaded ${scrapedMapUrls.size} existing leads from ${outputFile}`);
   } else {
     fs.writeFileSync(outputFile, '\uFEFF"Original Search URL","Google Map URL","Title","Website","Phone Number","Review Count","Rating","Full Address","City","Country","Category"\n', 'utf-8');
   }
@@ -104,10 +102,10 @@ async function runUltimateScraper() {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 850 });
 
-  // 🚀 ব্রাউজার স্পিড বাড়ানোর জন্য মিডিয়া ব্লক
+  // 🛠️ শুধু ছবি ও মিডিয়া ব্লক করা হলো (CSS রাখা হয়েছে যেন ডাইনামিক DOM ঠিকমতো রেন্ডার হয়)
   await page.setRequestInterception(true);
   page.on('request', (req) => {
-    if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+    if (['image', 'media', 'font'].includes(req.resourceType())) {
       req.abort();
     } else {
       req.continue();
@@ -118,17 +116,18 @@ async function runUltimateScraper() {
     const searchUrl = searchLinks[i];
     console.log(`\n[Processing] URL: ${searchUrl}`);
     try {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await delay(4000); 
+      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+      await delay(5000); 
 
-      const sidebarSelector = '.m6QErb[aria-label]';
-      console.log("Scrolling sidebar to load maximum list...");
+      const sidebarSelector = 'div[role="feed"]';
+      console.log("Scrolling sidebar to load listings...");
+      
       await page.evaluate(async (selector) => {
         const sidebar = document.querySelector(selector) || document.querySelector('.m6QErb');
         if (sidebar) {
-          for (let s = 0; s < 45; s++) {
-            sidebar.scrollBy(0, 4000);
-            await new Promise(r => setTimeout(r, 800));
+          for (let s = 0; s < 30; s++) {
+            sidebar.scrollBy(0, 3000);
+            await new Promise(r => setTimeout(r, 1000));
             if (document.body.innerText.includes("You've reached the end of the list")) {
               break;
             }
@@ -136,8 +135,9 @@ async function runUltimateScraper() {
         }
       }, sidebarSelector);
 
-      const companyElements = await page.$$('a[href*="/maps/place/"]');
-      console.log(`Found ${companyElements.length} total shops on page.`);
+      // 🛠️ নিখুঁত শপ ফিল্টারিংয়ের জন্য নির্দিষ্ট অ্যানর কাস্টম সিলেক্টর
+      const companyElements = await page.$$('a.hf239b, a[href*="/maps/place/"]');
+      console.log(`Found ${companyElements.length} potential shops on page.`);
 
       if (companyElements.length === 0) {
         console.log("⚠️ No shops found on this page.");
@@ -150,15 +150,13 @@ async function runUltimateScraper() {
           
           const currentMapUrl = await page.evaluate(el => el.href ? el.href.toString() : '', element);
           
-          // 🧹 [২. ডুপ্লিকেট স্কিপ] ইউআরএল যদি আগে থেকে থেকে থাকে, তবে সাথে সাথে স্কিপ করবে
           if (!currentMapUrl || scrapedMapUrls.has(currentMapUrl)) {
-            if (currentMapUrl) console.log(`[-] Skipped Duplicate URL: ${currentMapUrl}`);
             continue; 
           }
 
           await page.evaluate(el => el.scrollIntoView(), element);
           await element.click();
-          await delay(2500);
+          await delay(3500); // ডিটেইলস প্যানেল পুরোপুরি লোড হওয়ার জন্য সময়
 
           const details = await page.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
@@ -213,7 +211,8 @@ async function runUltimateScraper() {
             return { title, category, website, phone, address, rating, reviewCount };
           });
 
-          if (!details || !details.title) continue;
+          // 🛠️ টাইটেল "Results" অথবা খালি হলে স্কিপ করবে
+          if (!details || !details.title || details.title.toLowerCase() === 'results') continue;
 
           if (!details.address || details.address.trim() === '') {
             console.log(`[-] Skipped: ${details.title} (No address)`);
@@ -242,8 +241,8 @@ async function runUltimateScraper() {
           const csvRow = `"${searchUrl.replace(/"/g, '""')}","${currentMapUrl.replace(/"/g, '""')}","${details.title.replace(/"/g, '""')}","${details.website.replace(/"/g, '""')}","${details.phone}","${details.reviewCount}","${details.rating}","${fullAddress.replace(/"/g, '""')}","${city.replace(/"/g, '""')}","${country.replace(/"/g, '""')}","${details.category.replace(/"/g, '""')}"\n`;
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
-          scrapedMapUrls.add(currentMapUrl); // 🎯 সেভ করার সাথে সাথে ট্র্যাকার সেটে ডুপ্লিকেট রেজিস্টার করে রাখা হলো
-          console.log(`[+] Saved (${scrapedMapUrls.size}): ${details.title}`);
+          scrapedMapUrls.add(currentMapUrl);
+          console.log(`[+] Saved (${scrapedMapUrls.size}): ${details.title} | ${city}`);
 
         } catch (err) { continue; }
       }
@@ -251,7 +250,7 @@ async function runUltimateScraper() {
   }
 
   await browser.close();
-  console.log(`🎉 স্ক্র্যাপিং সফলভাবে শেষ হয়েছে! মোট ইউনিক লিড: ${scrapedMapUrls.size}`);
+  console.log(`🎉 স্ক্র্যাপিং সফলভাবে শেষ হয়েছে! মোট লিড সংগৃহীত: ${scrapedMapUrls.size}`);
 }
 
 runUltimateScraper();
