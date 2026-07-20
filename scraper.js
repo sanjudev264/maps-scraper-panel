@@ -6,17 +6,18 @@ puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ক্যাটাগরি ফিল্টার প্রসেসিং (কমা বা নিউলাইন ডিলিমিটার সাপোর্ট)
 const rawInclude = process.env.INCLUDE_CATEGORIES || ""; 
 const rawExclude = process.env.EXCLUDE_DOMAINS || "";
 const minRatingInput = parseFloat(process.env.MIN_RATING) || 0;
 const maxRatingInput = parseFloat(process.env.MAX_RATING) || 5;
 
 const targetKeywords = rawInclude 
-  ? rawInclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
+  ? rawInclude.split(/[\n,]+/).map(item => item.trim().toLowerCase()).filter(Boolean) 
   : []; 
 
 const excludedDomainsRaw = rawExclude 
-  ? rawExclude.split('\n').map(item => item.trim().toLowerCase()).filter(Boolean) 
+  ? rawExclude.split(/[\n,]+/).map(item => item.trim().toLowerCase()).filter(Boolean) 
   : [];
 
 function isExcludedWebsite(url) {
@@ -26,8 +27,7 @@ function isExcludedWebsite(url) {
     let hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
     const defaultExcluded = ['youtube.com', 'linkedin.com', 'crunchbase.org', 'pitchbook.com', 'yelp.com'];
     const excludedDomains = excludedDomainsRaw.length > 0 ? excludedDomainsRaw : defaultExcluded;
-    if (excludedDomains.some(domain => hostname === domain || hostname.includes(domain))) return true;
-    return false;
+    return excludedDomains.some(domain => hostname === domain || hostname.includes(domain));
   } catch (e) { return false; }
 }
 
@@ -101,7 +101,6 @@ async function runUltimateScraper() {
   const mainPage = await browser.newPage();
   await mainPage.setViewport({ width: 1280, height: 850 });
 
-  // রিমোনিং অপ্রয়োজনীয় মিডিয়া
   await mainPage.setRequestInterception(true);
   mainPage.on('request', (req) => {
     if (['image', 'media', 'font'].includes(req.resourceType())) {
@@ -120,7 +119,6 @@ async function runUltimateScraper() {
 
       console.log("Scrolling sidebar to collect all shop links...");
       
-      // সাইডবার স্ক্রোল করে সব লিংক কালেক্ট করা
       const placeLinks = await mainPage.evaluate(async () => {
         const sidebar = document.querySelector('div[role="feed"]') || document.querySelector('.m6QErb');
         if (sidebar) {
@@ -136,7 +134,6 @@ async function runUltimateScraper() {
 
       console.log(`Found ${placeLinks.length} unique links. Scraping details now...`);
 
-      // নতুন পেজে সরাসরি ইউআরএল নেভিগেট করে ডাটা তোলা (স্টাক হওয়ার চান্স ০%)
       const detailPage = await browser.newPage();
       await detailPage.setRequestInterception(true);
       detailPage.on('request', (req) => {
@@ -148,14 +145,12 @@ async function runUltimateScraper() {
         const mapUrl = placeLinks[j];
 
         if (scrapedMapUrls.has(mapUrl)) {
-          console.log(`[-] Skipped Duplicate: ${mapUrl.substring(0, 50)}...`);
           continue;
         }
 
         try {
-          // সরাসরি দোকানে চলে যাবে, পেজ লোডের জন্য মাত্র ১০ সে. টাইমআউট
           await detailPage.goto(mapUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-          await delay(1500);
+          await delay(1200);
 
           const details = await detailPage.evaluate(() => {
             const nameEl = document.querySelector('h1.DUwDvf') || document.querySelector('h1');
@@ -215,9 +210,14 @@ async function runUltimateScraper() {
             continue; 
           }
 
+          // 🎯 ক্যাটাগরি ম্যাচিং লজিক
           if (targetKeywords.length > 0) {
             const currentCat = details.category.toLowerCase().trim();
-            const isMatched = targetKeywords.some(keyword => currentCat.includes(keyword.trim().toLowerCase()));
+            const isMatched = targetKeywords.some(keyword => {
+              const cleanedKeyword = keyword.trim().toLowerCase();
+              return currentCat.includes(cleanedKeyword) || cleanedKeyword.includes(currentCat);
+            });
+            
             if (!isMatched) {
               console.log(`[-] Skipped: ${details.title} (Category '${details.category}' not matched)`);
               continue;
@@ -232,10 +232,9 @@ async function runUltimateScraper() {
           
           fs.appendFileSync(outputFile, csvRow, 'utf-8');
           scrapedMapUrls.add(mapUrl);
-          console.log(`[+] Saved (${scrapedMapUrls.size}/${placeLinks.length}): ${details.title} | ${city}`);
+          console.log(`[+] Saved (${scrapedMapUrls.size}/${placeLinks.length}): ${details.title} | ${details.category} | ${city}`);
 
         } catch (err) {
-          console.log(`[-] Failed to load shop, skipping...`);
           continue;
         }
       }
